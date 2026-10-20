@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "description": "Ajoute un bouton PiP sur les videos pour les afficher dans une fenetre flottante.",
   "author": "Plimb Team",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "plimb-popout-video@plimb.browser",
+      "strict_min_version": "115.0"
+    }
+  },
   "permissions": ["<all_urls>"],
   "content_scripts": [
     {

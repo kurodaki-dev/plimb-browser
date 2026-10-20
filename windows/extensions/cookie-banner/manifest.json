@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "description": "Clique automatiquement sur « refuser » (ou a defaut « accepter ») dans les bandeaux cookies.",
   "author": "Plimb Team",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "plimb-cookie-banner@plimb.browser",
+      "strict_min_version": "115.0"
+    }
+  },
   "permissions": ["<all_urls>"],
   "content_scripts": [
     {

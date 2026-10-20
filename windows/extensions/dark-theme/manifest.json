@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "description": "Force un theme sombre sur tous les sites visites.",
   "author": "Plimb Team",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "plimb-dark-theme@plimb.browser",
+      "strict_min_version": "115.0"
+    }
+  },
   "permissions": ["<all_urls>"],
   "content_scripts": [
     {
