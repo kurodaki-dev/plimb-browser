@@ -16,7 +16,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<ListPreference>(Prefs.KEY_SEARCH_ENGINE)?.apply {
             entries = Prefs.ENGINES.map { Prefs.ENGINE_LABELS[it.first] }.toTypedArray()
-            entryValues = Prefs.ENGINES.map { it.first }.toTypedArray()
+            entryValues = Prefs.ENGINE.map { it.first }.toTypedArray()
             summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->
                 val value = preference.value ?: Prefs.ENGINES.first().first
                 Prefs.ENGINE_LABELS[value] ?: value
@@ -34,6 +34,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<Preference>("open_extensions")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), ExtensionsActivity::class.java))
+            true
+        }
+
+        findPreference<Preference>("open_addon_store")?.setOnPreferenceClickListener {
+            startActivity(Intent(requireContext(), AddonStoreActivity::class.java))
             true
         }
     }

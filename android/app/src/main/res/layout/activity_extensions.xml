@@ -34,20 +34,29 @@
         android:padding="12dp">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/extensions_install"
+            android:id="@+id/extensions_store"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/ext_install_action" />
+            android:text="@string/ext_store" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/extensions_refresh"
+            android:id="@+id/extensions_install_file"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="@string/ext_refresh" />
+            android:text="@string/ext_install_file" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/extensions_install_url"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/ext_install_url" />
     </LinearLayout>
 </LinearLayout>
