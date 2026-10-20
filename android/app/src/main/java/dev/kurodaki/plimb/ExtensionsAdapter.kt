@@ -10,49 +10,46 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.switchmaterial.SwitchMaterial
 
-/** Adaptateur listant les extensions avec leur etat. */
+/** Adaptateur de la liste d extensions installees. */
 class ExtensionsAdapter(
-    private val onToggle: (Extension, Boolean) -> Unit,
-    private val onDelete: (Extension) -> Unit
-) : ListAdapter<Extension, ExtensionsAdapter.VH>(DIFF) {
+    private val onToggle: (AddonEntry, Boolean) -> Unit,
+    private val onRemove: (AddonEntry) -> Unit
+) : ListAdapter<AddonEntry, ExtensionsAdapter.VH>(DIFF) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val title: TextView = view.findViewById(R.id.ext_title)
         val meta: TextView = view.findViewById(R.id.ext_meta)
         val description: TextView = view.findViewById(R.id.ext_description)
         val toggle: SwitchMaterial = view.findViewById(R.id.ext_switch)
-        val delete: ImageButton = view.findViewById(R.id.ext_delete)
+        val remove: ImageButton = view.findViewById(R.id.ext_delete)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
         VH(LayoutInflater.from(parent.context).inflate(R.layout.item_extension, parent, false))
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val extension = getItem(position)
+        val entry = getItem(position)
         val context = holder.itemView.context
-        holder.title.text = extension.name
+        holder.title.text = entry.name
         holder.meta.text = listOfNotNull(
-            extension.version.takeIf { it.isNotBlank() },
-            extension.author.takeIf { it.isNotBlank() },
-            if (extension.bundled) context.getString(R.string.ext_bundled)
+            entry.version.takeIf { it.isNotBlank() },
+            if (entry.builtIn) context.getString(R.string.ext_bundled)
             else context.getString(R.string.ext_user)
         ).joinToString(" · ")
-        holder.description.text = extension.description
+        holder.description.text = entry.description
         holder.toggle.setOnCheckedChangeListener(null)
-        holder.toggle.isChecked = extension.isEnabled(context)
-        holder.toggle.setOnCheckedChangeListener { _, value ->
-            onToggle(extension, value)
-        }
-        holder.delete.visibility = if (extension.bundled) View.GONE else View.VISIBLE
-        holder.delete.setOnClickListener { onDelete(extension) }
+        holder.toggle.isChecked = entry.enabled
+        holder.toggle.setOnCheckedChangeListener { _, value -> onToggle(entry, value) }
+        holder.remove.visibility = if (entry.builtIn) View.GONE else View.VISIBLE
+        holder.remove.setOnClickListener { onRemove(entry) }
     }
 
     companion object {
-        private val DIFF = object : DiffUtil.ItemCallback<Extension>() {
-            override fun areItemsTheSame(oldItem: Extension, newItem: Extension): Boolean =
+        private val DIFF = object : DiffUtil.ItemCallback<AddonEntry>() {
+            override fun areItemsTheSame(oldItem: AddonEntry, newItem: AddonEntry): Boolean =
                 oldItem.id == newItem.id
 
-            override fun areContentsTheSame(oldItem: Extension, newItem: Extension): Boolean =
+            override fun areContentsTheSame(oldItem: AddonEntry, newItem: AddonEntry): Boolean =
                 oldItem == newItem
         }
     }

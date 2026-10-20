@@ -1,23 +1,23 @@
 package dev.kurodaki.plimb
 
 import android.app.Activity
-import android.app.DownloadManager
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.os.Message
+import android.provider.MediaStore
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.webkit.PermissionRequest
 import android.webkit.URLUtil
-import android.webkit.ValueCallback
-import android.webkit.WebChromeClient
-import android.webkit.WebView
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -26,18 +26,34 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoSession
+import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.WebExtension
+import org.mozilla.geckoview.WebExtensionController
+import org.mozilla.geckoview.WebResponse
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 /**
- * Plimb Browser — ecran principal.
+ * Plimb Browser — ecran principal, base sur le moteur GeckoView (Firefox).
  *
- * Gere les onglets (une WebView par onglet), la barre d adresse, les telechargements,
- * les pop-ups, le bloquage des publicites et l injection des extensions.
+ * Gere les onglets (une GeckoSession par onglet), la barre d adresse, les telechargements,
+ * les permissions, le plein ecran et le gestionnaire d extensions (WebExtensions).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -45,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         const val HOME_PAGE = "file:///android_asset/home.html"
 
         private const val DESKTOP_UA =
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"
     }
 
     private lateinit var toolbar: MaterialToolbar
@@ -61,19 +77,22 @@ class MainActivity : AppCompatActivity() {
 
     private val tabs = mutableListOf<PlimbTab>()
     private var currentIndex = -1
-    private var lastDesktopMode = false
-    private var lastJsEnabled = true
 
     private val prefs by lazy { Prefs.settings(this) }
-    private val webViewClient = PlimbWebViewClient(this)
-    private val webChromeClient = ChromeClient()
+    private val runtime: GeckoRuntime by lazy {
+        PlimbApp.runtime ?: GeckoRuntime.create(
+            this,
+            org.mozilla.geckoview.GeckoRuntimeSettings.Builder().build()
+        )
+    }
 
-    private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    private var pendingFileCallback: ((Array<Uri>?) -> Unit)? = null
+    private var pendingPermissionCallback: ((Boolean) -> Unit)? = null
 
-    private val fileChooserLauncher: ActivityResultLauncher<Intent> =
+    private val filePickerLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val callback = pendingFileChooser ?: return@registerForActivityResult
-            pendingFileChooser = null
+            val callback = pendingFileCallback ?: return@registerForActivityResult
+            pendingFileCallback = null
             var uris: Array<Uri>? = null
             if (result.resultCode == Activity.RESULT_OK) {
                 val data = result.data
@@ -84,65 +103,15 @@ class MainActivity : AppCompatActivity() {
                     else -> null
                 }
             }
-            callback.onReceiveValue(uris)
+            callback(uris)
         }
 
-    private inner class ChromeClient : WebChromeClient() {
-
-        override fun onProgressChanged(view: WebView, newProgress: Int) {
-            if (view !== currentWeb()) return
-            progressBar.progress = newProgress
-            progressBar.isVisible = newProgress in 1..99
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            val callback = pendingPermissionCallback ?: return@registerForActivityResult
+            pendingPermissionCallback = null
+            callback(grants.values.all { it })
         }
-
-        override fun onReceivedTitle(view: WebView, title: String?) {
-            if (view === currentWeb()) updateChrome()
-        }
-
-        override fun onShowFileChooser(
-            webView: WebView,
-            filePathCallback: ValueCallback<Array<Uri>>,
-            fileChooserParams: FileChooserParams
-        ): Boolean {
-            pendingFileChooser?.onReceiveValue(null)
-            pendingFileChooser = filePathCallback
-            return try {
-                fileChooserLauncher.launch(fileChooserParams.createIntent())
-                true
-            } catch (e: ActivityNotFoundException) {
-                pendingFileChooser = null
-                false
-            }
-        }
-
-        override fun onPermissionRequest(request: PermissionRequest) {
-            val granted = request.resources
-                ?.filter {
-                    it == PermissionRequest.RESOURCE_VIDEO_CAPTURE ||
-                        it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
-                }
-                ?.toTypedArray()
-                ?: emptyArray()
-            if (granted.isNotEmpty()) request.grant(granted) else request.deny()
-        }
-
-        override fun onCreateWindow(
-            view: WebView,
-            isDialog: Boolean,
-            isUserGesture: Boolean,
-            resultMsg: Message
-        ): Boolean {
-            val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-            val popup = WebView(this@MainActivity)
-            popup.settings.javaScriptEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
-            popup.settings.domStorageEnabled = true
-            popup.settings.setSupportMultipleWindows(false)
-            transport.webView = popup
-            resultMsg.sendToTarget()
-            popup.webViewClient = PopupClient(this@MainActivity, popup)
-            return true
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -150,8 +119,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         bindViews()
         setSupportActionBar(toolbar)
-        lastDesktopMode = prefs.getBoolean(Prefs.KEY_DESKTOP, false)
-        lastJsEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
+
+        registerExtensionDelegates()
+        AddonManager.installBuiltIns(runtime)
         setupControls()
 
         if (tabs.isEmpty()) restoreSession()
@@ -169,30 +139,22 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
-    override fun onResume() {
-        super.onResume()
-        currentWeb()?.onResume()
-
-        val desktop = prefs.getBoolean(Prefs.KEY_DESKTOP, false)
-        if (desktop != lastDesktopMode) {
-            lastDesktopMode = desktop
-            applyDesktopMode()
-        }
-        val jsEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
-        if (jsEnabled != lastJsEnabled) {
-            lastJsEnabled = jsEnabled
-            tabs.forEach { it.webView.settings.javaScriptEnabled = jsEnabled }
-        }
-    }
-
     override fun onPause() {
         saveSession()
-        currentWeb()?.onPause()
+        currentTab()?.session?.setActive(false)
         super.onPause()
     }
 
+    override fun onResume() {
+        super.onResume()
+        currentTab()?.session?.setActive(true)
+    }
+
     override fun onDestroy() {
-        tabs.forEach { it.webView.destroy() }
+        tabs.forEach { tab ->
+            tab.session.setActive(false)
+            tab.session.close()
+        }
         tabs.clear()
         super.onDestroy()
     }
@@ -203,9 +165,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.action_block_ads)?.isChecked =
-            prefs.getBoolean(Prefs.KEY_BLOCK_ADS, true)
-        menu.findItem(R.id.action_desktop)?.isChecked = lastDesktopMode
+        menu.findItem(R.id.action_desktop)?.isChecked =
+            prefs.getBoolean(Prefs.KEY_DESKTOP, false)
         return true
     }
 
@@ -224,18 +185,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_block_ads -> {
-                val value = !prefs.getBoolean(Prefs.KEY_BLOCK_ADS, true)
-                prefs.edit { putBoolean(Prefs.KEY_BLOCK_ADS, value) }
-                currentWeb()?.reload()
-                snack(getString(if (value) R.string.block_ads_on else R.string.block_ads_off))
-                invalidateOptionsMenu()
+                toggleBlocking()
                 true
             }
             R.id.action_desktop -> {
-                val value = !lastDesktopMode
-                prefs.edit { putBoolean(Prefs.KEY_DESKTOP, value) }
-                lastDesktopMode = value
-                applyDesktopMode()
+                toggleDesktopMode()
                 true
             }
             R.id.action_settings -> {
@@ -250,7 +204,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---------------------------------------------------------------- UI
+    // ------------------------------------------------------------------- UI
 
     private fun applyTheme() {
         val dark = prefs.getBoolean(Prefs.KEY_DARK, false)
@@ -283,72 +237,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
         urlBar.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) urlBar.setText(currentWeb()?.url ?: "")
+            if (!hasFocus) urlBar.setText(currentTab()?.url ?: "")
         }
-        btnBack.setOnClickListener { currentWeb()?.takeIf { it.canGoBack() }?.goBack() }
-        btnForward.setOnClickListener { currentWeb()?.takeIf { it.canGoForward() }?.goForward() }
+        btnBack.setOnClickListener { currentTab()?.session?.takeIf { it.canGoBack }?.goBack() }
+        btnForward.setOnClickListener { currentTab()?.session?.takeIf { it.canGoForward }?.goForward() }
         btnReload.setOnClickListener {
-            val web = currentWeb() ?: return@setOnClickListener
-            if (web.progress in 1..99) web.stopLoading() else web.reload()
+            val tab = currentTab() ?: return@setOnClickListener
+            if (tab.isLoading) tab.session.stop() else tab.session.reload()
         }
         btnHome.setOnClickListener { navigate(HOME_PAGE) }
         btnNewTab.setOnClickListener { openTab(HOME_PAGE) }
         btnTabs.setOnClickListener { showTabsSheet() }
     }
 
-    // ------------------------------------------------------------- Onglets
+    // -------------------------------------------------------------- Onglets
 
-    /** Ouvre un nouvel onglet sur l URL donnee. */
+    /** Cree un onglet et charge l URL demandee. */
     fun openTab(url: String, select: Boolean = true): PlimbTab {
-        val webView = WebView(this)
-        webView.layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        configure(webView)
-        val tab = PlimbTab(webView)
+        val session = GeckoSession()
+        val callbacks = TabCallbacks(this, PlimbTab(session, GeckoView(this)))
+        session.progressDelegate = callbacks
+        session.navigationDelegate = callbacks
+        session.contentDelegate = callbacks
+        session.promptDelegate = callbacks
+        session.permissionDelegate = callbacks
+        session.open(runtime)
+
+        val tab = PlimbTab(session, callbacks.tab.geckoView)
+        tab.geckoView.setSession(session)
+        tab.url = url
         tabs.add(tab)
         if (select) selectTab(tabs.size - 1)
-        webView.loadUrl(url)
+        session.loadUri(url)
         return tab
-    }
-
-    /** Transforme une WebView enfant (pop-up) en onglet a part entiere. */
-    fun adoptPopup(popup: WebView, url: String): PlimbTab {
-        configure(popup)
-        val tab = PlimbTab(popup)
-        tabs.add(tab)
-        selectTab(tabs.size - 1)
-        popup.loadUrl(url)
-        return tab
-    }
-
-    private fun configure(web: WebView) {
-        web.settings.apply {
-            javaScriptEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
-            domStorageEnabled = true
-            databaseEnabled = true
-            loadsImagesAutomatically = true
-            useWideViewPort = true
-            loadWithOverviewMode = true
-            builtInZoomControls = true
-            displayZoomControls = false
-            mediaPlaybackRequiresUserGesture = false
-            javaScriptCanOpenWindowsAutomatically = true
-            setSupportMultipleWindows(true)
-            setGeolocationEnabled(false)
-            allowFileAccess = false
-            allowContentAccess = true
-            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            userAgentString =
-                if (prefs.getBoolean(Prefs.KEY_DESKTOP, false)) DESKTOP_UA else null
-        }
-        web.webViewClient = webViewClient
-        web.webChromeClient = webChromeClient
-        web.setDownloadListener { url, userAgent, disposition, mimetype, _ ->
-            downloadFile(url, userAgent, disposition, mimetype)
-        }
-        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
     }
 
     private fun selectTab(index: Int) {
@@ -356,22 +277,25 @@ class MainActivity : AppCompatActivity() {
         tabs.forEachIndexed { position, tab ->
             if (position == index) {
                 webContainer.removeAllViews()
-                webContainer.addView(tab.webView)
-                tab.webView.onResume()
+                webContainer.addView(tab.geckoView)
+                tab.session.setActive(true)
+                runtime.webExtensionController.setTabActive(tab.session, true)
             } else {
-                tab.webView.onPause()
+                tab.session.setActive(false)
+                runtime.webExtensionController.setTabActive(tab.session, false)
             }
         }
         currentIndex = index
-        urlBar.setText(tabs[index].webView.url ?: "")
+        urlBar.setText(tabs[index].url)
         updateChrome()
     }
 
-    private fun closeTab(index: Int) {
+    fun closeTab(index: Int) {
         if (index < 0 || index >= tabs.size) return
         val tab = tabs.removeAt(index)
-        webContainer.removeView(tab.webView)
-        tab.webView.destroy()
+        webContainer.removeView(tab.geckoView)
+        tab.session.setActive(false)
+        tab.session.close()
         if (tabs.isEmpty()) {
             currentIndex = -1
             finish()
@@ -380,27 +304,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun updateChrome() {
-        val web = currentWeb()
-        btnBack.isEnabled = web?.canGoBack() == true
-        btnForward.isEnabled = web?.canGoForward() == true
-        val loading = web.progress in 1..99
-        btnReload.setImageResource(if (loading) R.drawable.ic_close else R.drawable.ic_refresh)
-        btnTabs.text = tabs.size.toString()
-        if (!urlBar.hasFocus()) urlBar.setText(web?.url ?: "")
-        invalidateOptionsMenu()
-    }
+    fun indexOf(tab: PlimbTab): Int = tabs.indexOf(tab)
 
     fun currentTab(): PlimbTab? = tabs.getOrNull(currentIndex)
 
-    fun currentWeb(): WebView? = currentTab()?.webView
+    fun updateChrome() {
+        val tab = currentTab() ?: return
+        btnBack.isEnabled = tab.session.canGoBack
+        btnForward.isEnabled = tab.session.canGoForward
+        btnReload.setImageResource(
+            if (tab.isLoading) R.drawable.ic_close else R.drawable.ic_refresh
+        )
+        btnTabs.text = tabs.size.toString()
+        progressBar.progress = tab.progress
+        progressBar.isVisible = tab.isLoading
+        if (!urlBar.hasFocus()) urlBar.setText(tab.url)
+        invalidateOptionsMenu()
+    }
 
-    fun isBlockingAds(): Boolean = prefs.getBoolean(Prefs.KEY_BLOCK_ADS, true)
+    /** Appele par les delegues Gecko quand l onglet actif change d etat. */
+    fun onTabStateChanged() {
+        runOnUiThread { updateChrome() }
+    }
 
-    // --------------------------------------------------------- Navigation
+    // ------------------------------------------------------------ Navigation
 
     fun navigate(url: String) {
-        currentWeb()?.loadUrl(url)
+        currentTab()?.session?.loadUri(url)
         updateChrome()
     }
 
@@ -408,10 +338,9 @@ class MainActivity : AppCompatActivity() {
         val input = urlBar.text.toString().trim()
         if (input.isEmpty()) return
         hideKeyboard()
-        currentWeb()?.loadUrl(normalizeInput(input))
+        currentTab()?.session?.loadUri(normalizeInput(input))
     }
 
-    /** URL ou requete de recherche selon ce que l utilisateur a tape. */
     fun normalizeInput(input: String): String {
         val text = input.trim()
         if (text.startsWith("file://") || text.startsWith("about:")) return text
@@ -421,36 +350,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateToNewTab(url: String) {
-        val current = currentWeb()
+        val current = currentTab()
         when {
             current == null -> openTab(url)
-            current.url.isNullOrBlank() || current.url == HOME_PAGE -> {
-                current.loadUrl(url)
-                updateChrome()
-            }
+            current.url.isEmpty() || current.url == HOME_PAGE -> navigate(url)
             else -> openTab(url)
         }
     }
 
     private fun goBackOrExit() {
-        val web = currentWeb()
+        val session = currentTab()?.session
         when {
-            web != null && web.canGoBack() -> web.goBack()
+            session != null && session.canGoBack -> session.goBack()
             tabs.size > 1 -> closeTab(currentIndex)
             else -> finish()
-        }
-    }
-
-    private fun handleIntent(intent: Intent?) {
-        when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.dataString?.let { navigateToNewTab(it) }
-            Intent.ACTION_SEND -> {
-                val shared = intent.getStringExtra(Intent.EXTRA_TEXT)
-                if (!shared.isNullOrBlank()) {
-                    val line = shared.lines().firstOrNull { it.isNotBlank() }
-                    if (!line.isNullOrBlank()) navigateToNewTab(normalizeInput(line))
-                }
-            }
         }
     }
 
@@ -462,41 +375,172 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ------------------------------------------------------- Telechargement
+    // ----------------------------------------------------- Telechargements
 
-    @Suppress("DEPRECATION")
-    private fun downloadFile(url: String, userAgent: String, disposition: String, mimeType: String) {
-        val fileName = URLUtil.guessFileName(url, disposition, mimeType)
-        try {
-            val request = DownloadManager.Request(Uri.parse(url)).apply {
-                setMimeType(mimeType)
-                addRequestHeader("User-Agent", userAgent)
-                currentWeb()?.url?.let { addRequestHeader("Referer", it) }
-                setTitle(fileName)
-                setDescription(getString(R.string.app_name))
-                setNotificationVisibility(
-                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+    fun onDownload(session: GeckoSession, response: WebResponse) {
+        val stream: InputStream = response.body ?: return
+        val name = response.filename?.takeIf { it.isNotBlank() }
+            ?: URLUtil.guessFileName(response.uri, null, response.contentType)
+        CoroutineScope(Dispatchers.Main).launch {
+            snack(getString(R.string.download_started, name))
+            val saved = saveDownload(name, stream)
+            snack(
+                getString(
+                    if (saved != null) R.string.download_done else R.string.download_failed,
+                    name
                 )
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-            }
-            (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-            snack(getString(R.string.download_started, fileName))
-        } catch (e: Exception) {
-            snack(getString(R.string.download_failed, fileName))
+            )
         }
     }
 
-    // ------------------------------------------------------------- Session
+    private suspend fun saveDownload(name: String, stream: InputStream): String? =
+ withContext(Dispatchers.IO) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val resolver = contentResolver
+                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        ?: return@withContext null
+                    resolver.openOutputStream(uri)?.use { output -> stream.copyTo(output) }
+                    uri.toString()
+                } else {
+                    @Suppress("DEPRECATION")
+                    val directory =
+                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!directory.exists()) directory.mkdirs()
+                    val file = File(directory, name)
+                    FileOutputStream(file).use { output -> stream.copyTo(output) }
+                    file.absolutePath
+                }
+            } catch (e: Exception) {
+                Log.w("Plimb", "Telechargement impossible : $name", e)
+                null
+            } finally {
+                runCatching { stream.close() }
+            }
+        }
+
+    // -------------------------------------------------------------- Prompts
+
+    fun pickFile(
+        mimeTypes: Array<out String>?,
+        multiple: Boolean,
+        callback: (Array<Uri>?) -> Unit
+    ) {
+        pendingFileCallback = callback
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeTypes?.firstOrNull() ?: "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple)
+            mimeTypes?.let { putExtra(Intent.EXTRA_MIME_TYPES, it) }
+        }
+        runCatching { filePickerLauncher.launch(intent) }.onFailure {
+            pendingFileCallback = null
+            callback(null)
+        }
+    }
+
+    fun requestAppPermissions(permissions: Array<out String>, callback: (Boolean) -> Unit) {
+        pendingPermissionCallback = callback
+        permissionLauncher.launch(permissions)
+    }
+
+    fun onFullScreenRequested(fullScreen: Boolean) {
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        if (fullScreen) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // --------------------------------------------------- Extensions / add-ons
+
+    private fun registerExtensionDelegates() {
+        runtime.webExtensionController.setPromptDelegate(
+            object : WebExtensionController.PromptDelegate {
+                override fun onInstallPromptRequest(
+                    extension: WebExtension,
+                    permissions: Array<out String>?,
+                    origins: Array<out String>?,
+                    dataCollectionPermissions: Array<out String>?
+                ): GeckoResult<WebExtension.PermissionPromptResponse> {
+                    val result = GeckoResult<WebExtension.PermissionPromptResponse>()
+                    val details = buildString {
+                        append(extension.metaData?.description ?: "")
+                        if (!permissions.isNullOrEmpty()) {
+                            append("\n\nPermissions : ")
+                            append(permissions.joinToString(", "))
+                        }
+                        if (!origins.isNullOrEmpty()) {
+                            append("\nSites concernes : ")
+                            append(origins.joinToString(", "))
+                        }
+                    }
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle(extension.metaData?.name ?: extension.id)
+                        .setMessage(details.trim())
+                        .setNegativeButton(android.R.string.cancel) { _, _ ->
+                            result.complete(WebExtension.PermissionPromptResponse(false, false, false))
+                        }
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            result.complete(WebExtension.PermissionPromptResponse(true, true, true))
+                        }
+                        .setOnCancelListener {
+                            result.complete(WebExtension.PermissionPromptResponse(false, false, false))
+                        }
+                        .show()
+                    return result
+                }
+            }
+        )
+
+        runtime.webExtensionController.setAddonManagerDelegate(
+            object : WebExtensionController.AddonManagerDelegate {}
+        )
+    }
+
+    private fun openExtensions() {
+        startActivity(Intent(this, ExtensionsActivity::class.java))
+    }
+
+    // ------------------------------------------------------------- Reglages
+
+    private fun toggleBlocking() {
+        val value = !prefs.getBoolean(Prefs.KEY_BLOCK_ADS, true)
+        prefs.edit { putBoolean(Prefs.KEY_BLOCK_ADS, value) }
+        AddonManager.setEnabled(runtime, AddonEntry("plimb-blocker@plimb.browser", "", "", "", value, true), value)
+        currentTab()?.session?.reload()
+        snack(getString(if (value) R.string.block_ads_on else R.string.block_ads_off))
+        invalidateOptionsMenu()
+    }
+
+    private fun toggleDesktopMode() {
+        val value = !prefs.getBoolean(Prefs.KEY_DESKTOP, false)
+        prefs.edit { putBoolean(Prefs.KEY_DESKTOP, value) }
+        applyDesktopMode()
+        invalidateOptionsMenu()
+    }
+
+    private fun applyDesktopMode() {
+        val desktop = prefs.getBoolean(Prefs.KEY_DESKTOP, false)
+        tabs.forEach { tab ->
+            tab.session.settings.userAgentOverride =
+                if (desktop) DESKTOP_UA else null
+        }
+        currentTab()?.session?.reload()
+    }
+
+    // -------------------------------------------------------------- Session
 
     private fun saveSession() {
         if (!prefs.getBoolean(Prefs.KEY_RESTORE, true)) return
-        val urls = tabs.mapNotNull { tab ->
-            tab.webView.url?.takeIf { !it.startsWith("file://") }
-        }
-        prefs.edit {
-            putStringSet(Prefs.KEY_SESSION, urls.toSet())
-            putString(Prefs.KEY_LAST_URL, urls.firstOrNull() ?: "")
-        }
+        val urls = tabs.map { it.url }.filter { it.isNotBlank() && !it.startsWith("file://") }
+        prefs.edit { putStringSet(Prefs.KEY_SESSION, urls.toSet()) }
     }
 
     private fun restoreSession() {
@@ -506,13 +550,13 @@ class MainActivity : AppCompatActivity() {
         prefs.edit { remove(Prefs.KEY_SESSION) }
     }
 
-    // ------------------------------------------------------------- Divers
+    // --------------------------------------------------------------- Divers
 
     private fun share() {
-        val url = currentWeb()?.url ?: return
+        val url = currentTab()?.url ?: return
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, currentWeb()?.title ?: getString(R.string.app_name))
+            putExtra(Intent.EXTRA_SUBJECT, currentTab()?.title ?: getString(R.string.app_name))
             putExtra(Intent.EXTRA_TEXT, url)
         }
         startActivity(Intent.createChooser(intent, getString(R.string.share)))
@@ -528,10 +572,6 @@ class MainActivity : AppCompatActivity() {
         sheet.show(supportFragmentManager, "tabs")
     }
 
-    private fun openExtensions() {
-        startActivity(Intent(this, ExtensionsActivity::class.java))
-    }
-
     fun snack(message: String) {
         Snackbar.make(webContainer, message, Snackbar.LENGTH_SHORT).show()
     }
@@ -542,27 +582,16 @@ class MainActivity : AppCompatActivity() {
         urlBar.clearFocus()
     }
 
-    // ------------------------------------- Appels du WebViewClient fils
-
-    fun onPageStarted(view: WebView, url: String) {
-        if (view !== currentWeb()) return
-        progressBar.isVisible = true
-        progressBar.progress = 0
-        updateChrome()
-    }
-
-    fun onPageCommitted(view: WebView, url: String) {
-        if (view === currentWeb() && !urlBar.hasFocus()) urlBar.setText(url)
-    }
-
-    fun onPageFinished(view: WebView, url: String) {
-        if (view !== currentWeb()) return
-        progressBar.isVisible = false
-        updateChrome()
-        val tab = tabs.firstOrNull { it.webView === view } ?: return
-        if (tab.lastInjected != url) {
-            tab.lastInjected = url
-            Extensions.inject(this, view)
+    private fun handleIntent(intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.dataString?.let { navigateToNewTab(it) }
+            Intent.ACTION_SEND -> {
+                val shared = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (!shared.isNullOrBlank()) {
+                    val line = shared.lines().firstOrNull { it.isNotBlank() }
+                    if (!line.isNullOrBlank()) navigateToNewTab(normalizeInput(line))
+                }
+            }
         }
     }
 }

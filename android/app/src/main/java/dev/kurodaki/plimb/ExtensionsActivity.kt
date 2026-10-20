@@ -1,23 +1,22 @@
 package dev.kurodaki.plimb
 
 import android.os.Bundle
-import android.text.InputType
-import android.widget.EditText
-import android.widget.LinearLayout
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
+import org.mozilla.geckoview.GeckoResult
+import org.mozilla.geckoview.WebExtension
 
-/** Ecran de gestion des extensions (activees / desactivees / installees). */
+/**
+ * Gestionnaire d extensions : liste des add-ons installes, activation,
+ * suppression et installation depuis un fichier .xpi ou une URL.
+ */
 class ExtensionsActivity : AppCompatActivity() {
 
     private lateinit var adapter: ExtensionsAdapter
@@ -31,31 +30,25 @@ class ExtensionsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         val recycler: RecyclerView = findViewById(R.id.extensions_recycler)
-        val installButton: MaterialButton = findViewById(R.id.extensions_install)
-        val refreshButton: MaterialButton = findViewById(R.id.extensions_refresh)
+        val storeButton: MaterialButton = findViewById(R.id.extensions_store)
+        val installFileButton: MaterialButton = findViewById(R.id.extensions_install_file)
+        val installUrlButton: MaterialButton = findViewById(R.id.extensions_install_url)
 
         adapter = ExtensionsAdapter(
-            onToggle = { extension, enabled ->
-                extension.setEnabled(this, enabled)
+            onToggle = { entry, enabled ->
+                AddonManager.setEnabled(PlimbApp.runtime ?: return@ExtensionsAdapter, entry, enabled)
+                refresh()
             },
-            onDelete = { extension ->
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.ext_delete)
-                    .setMessage(getString(R.string.ext_delete_confirm, extension.name))
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        Extensions.removeUser(this, extension.id)
-                        refresh()
-                        snack(getString(R.string.ext_deleted, extension.name))
-                    }
-                    .show()
-            }
+            onRemove = { entry -> confirmRemove(entry) }
         )
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        installButton.setOnClickListener { promptInstall() }
-        refreshButton.setOnClickListener { Extensions.reset(); refresh() }
+        storeButton.setOnClickListener {
+            startActivity(Intent(this, AddonStoreActivity::class.java))
+        }
+        installFileButton.setOnClickListener { pickXpi() }
+        installUrlButton.setOnClickListener { promptUrlInstall() }
 
         refresh()
     }
@@ -65,82 +58,113 @@ class ExtensionsActivity : AppCompatActivity() {
         return true
     }
 
+    override fun onResume() {
+        super.onResume()
+        refresh()
+    }
+
     private fun refresh() {
-        adapter.submit(Extensions.all(this))
+        val runtime = PlimbApp.runtime ?: return
+        AddonManager.list(runtime).accept(
+            { entries ->
+                adapter.submit(entries.sortedWith(
+                    compareByDescending<AddonEntry> { it.builtIn }.thenBy { it.name.lowercase() }
+                ))
+            },
+            { error ->
+                Toast.makeText(this, R.string.ext_unavailable, Toast.LENGTH_SHORT).show()
+                android.util.Log.w("Plimb", "Liste des extensions indisponible", error)
+            }
+        )
     }
 
-    private fun snack(message: String) {
-        com.google.android.material.snackbar.Snackbar
-            .make(findViewById(android.R.id.content), message,
-                com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show()
+    private fun pickXpi() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        filePicker.launch(intent)
     }
 
-    private fun promptInstall() {
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 0)
+    private val filePicker =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val uri = result.data?.data ?: return@registerForActivityResult
+            installFromUri(uri)
         }
-        val nameInput = EditText(this).apply {
-            hint = getString(R.string.ext_name_hint)
+
+    private fun installFromUri(uri: android.net.Uri) {
+        // GeckoView accepte les URI file: — on copie donc l .xpi choisi dans le cache.
+        val runtime = PlimbApp.runtime ?: return
+        val target = java.io.File(cacheDir, "addon-" + System.currentTimeMillis() + ".xpi")
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+        } catch (e: Exception) {
+            toast(getString(R.string.ext_install_error))
+            return
         }
-        val urlInput = EditText(this).apply {
+        AddonManager.install(runtime, "file://${target.absolutePath}").accept(
+            { extension ->
+                toast(getString(R.string.ext_install_ok, extension.metaData?.name ?: extension.id))
+                refresh()
+            },
+            { error ->
+                toast(getString(R.string.ext_install_error))
+                android.util.Log.w("Plimb", "Installation .xpi impossible", error)
+            }
+        )
+    }
+
+    private fun promptUrlInstall() {
+        val input = android.widget.EditText(this).apply {
             hint = getString(R.string.ext_url_hint)
-            inputType = InputType.TYPE_TEXT_VARIATION_URI
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(48, 32, 48, 8)
         }
-        layout.addView(nameInput)
-        layout.addView(urlInput)
-
         AlertDialog.Builder(this)
             .setTitle(R.string.ext_install_title)
-            .setView(layout)
+            .setView(input)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.ext_install_action) { _, _ ->
-                val name = nameInput.text.toString().trim()
-                val raw = urlInput.text.toString().trim()
-                if (raw.isNotEmpty()) installScript(name, raw)
+                val url = input.text.toString().trim()
+                if (url.isNotEmpty()) installFromUrl(url)
             }
             .show()
     }
 
-    private fun installScript(name: String, url: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 15000
-                        readTimeout = 15000
-                        instanceFollowRedirects = true
-                    }
-                    val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    connection.disconnect()
-                    body
-                }
-            }
-            result.onSuccess { script ->
-                if (script.isBlank()) {
-                    snack(getString(R.string.ext_install_error))
-                    return@onSuccess
-                }
-                val fallbackId = (url.substringAfterLast('/').substringBefore('.')).ifBlank {
-                    "script-${System.currentTimeMillis()}"
-                }
-                val id = fallbackId.lowercase().replace(Regex("[^a-z0-9_-]"), "-")
-                val extension = Extensions.installUserScript(
-                    context = this@ExtensionsActivity,
-                    id = id,
-                    name = name,
-                    source = url,
-                    script = script
-                )
-                if (extension == null) {
-                    snack(getString(R.string.ext_install_error))
-                } else {
-                    refresh()
-                    snack(getString(R.string.ext_install_ok, extension.name))
-                }
-            }.onFailure {
-                snack(getString(R.string.ext_install_error))
-            }
+    private fun installFromUrl(url: String) {
+        val runtime = PlimbApp.runtime ?: return
+        if (!url.startsWith("https://")) {
+            toast(getString(R.string.ext_install_error))
+            return
         }
+        AddonManager.install(runtime, url).accept(
+            { extension ->
+                toast(getString(R.string.ext_install_ok, extension.metaData?.name ?: extension.id))
+                refresh()
+            },
+            { error ->
+                toast(getString(R.string.ext_install_error))
+                android.util.Log.w("Plimb", "Installation distante impossible", error)
+            }
+        )
+    }
+
+    private fun confirmRemove(entry: AddonEntry) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.ext_delete)
+            .setMessage(getString(R.string.ext_delete_confirm, entry.name))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                AddonManager.uninstall(PlimbApp.runtime ?: return@setPositiveButton, entry)
+                refresh()
+            }
+            .show()
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }
