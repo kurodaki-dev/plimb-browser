@@ -34,15 +34,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Installer Gradle 8.7
+      - name: Installer Gradle 8.9
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: "8.7"
+          gradle-version: "8.9"
 
-      # Le wrapper Gradle est généré ici car le JAR binaire ne peut pas être versionné proprement.
+      # Le JAR du wrapper n'est pas versionné : il est généré ici.
       - name: Générer le wrapper Gradle
         working-directory: android
-        run: gradle wrapper --gradle-version 8.7 --distribution-type bin
+        run: gradle wrapper --gradle-version 8.9 --distribution-type bin
 
       - name: Compiler l'APK debug
         working-directory: android
@@ -67,7 +67,7 @@ jobs:
             echo "keystore=$RUNNER_TEMP/plimb.keystore" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Aucun keystore configuré : l'APK release sera signée avec la clé de test."
+            echo "Aucun keystore : l'APK release sera signée avec la clé de test."
           fi
 
       - name: Compiler l'APK release signée

@@ -1,179 +1,170 @@
 # Plimb Browser
 
 <p align="center">
-  <b>Plimb Browser — navigateur web open source, moteur Chromium, pour Android et Windows (version portable).</b><br/>
+  <b>Plimb Browser — navigateur web open source, avec de VRAIES extensions, pour Android et Windows.</b><br/>
   Par <a href="https://github.com/kurodaki-dev">@kurodaki-dev</a> · sous licence MIT
 </p>
 
 ---
 
-## C'est quoi ?
+## Deux moteurs, un seul navigateur
 
-Plimb Browser est un navigateur web moderne qui tourne sur deux plateformes :
+Plimb Browser est construit autour de deux moteurs de rendu complets, chacun avec son
+**système d'extensions natif** :
 
-| Plateforme | Base technique | Moteur | Système d'extensions |
-|------------|----------------|--------|----------------------|
-| **Android** (7.0+) | Kotlin + `androidx.webkit` / `WebView` | Chromium (moteur système) | scripts utilisateur (`.user.js`) + manifests JSON MV2 |
-| **Windows** (x64 / ia32) | Electron + `<webview>` | Chromium (bundlé) | idem, même format de manifest |
+| Plateforme | Moteur | Système d'extensions | Store d'extensions |
+|------------|--------|----------------------|---------------------|
+| **Android** (8.0+) | **GeckoView** (Firefox 141) | WebExtensions (MV2 + MV3) | **addons.mozilla.org** (catalogue intégré) + fichier `.xpi` + URL |
+| **Windows** (x64) | **Chromium** (Electron 44) | API `session.extensions` (Chrome MV2/MV3) | **Chrome Web Store** (ID ou URL) + fichier `.crx` + dossier non empaqueté |
 
-Les deux plateformes partagent :
-- le même **format d'extension** (manifest JSON + fichiers JS injectés),
-- la même **liste de blocage** des publicités et traqueurs,
-- les mêmes **moteurs de recherche** (DuckDuckGo, Google, Bing, Ecosia),
-- la même identité visuelle (bleu `#2563eb` + orange `#f97316`).
+**Pourquoi deux moteurs ?** Parce qu'aucun moteur unique ne couvre les deux mondes des extensions :
 
-## Fonctionnalités
+- **Chrome Web Store = Chromium.** Sur Android, le `WebView` système **n'expose aucune API
+  d'extension** : impossible d'avoir `chrome://extensions` ni le Web Store dessus (même Chrome
+  pour Android ne supporte pas les extensions). Les navigateurs Android qui y arrivent (Kiwi,
+  Lemur) sont des **forks complets de Chromium** — 15+ Go de sources et plusieurs heures de
+  compilation C++. On a donc pris l'autre route : **GeckoView**, le moteur Firefox embarqué,
+  qui expose un vrai système WebExtensions avec la bibliothèque officielle Mozilla, sans
+  compiler Chromium.
+- **Sur Windows**, Electron embarque Chromium et — depuis sa version 44 — expose une API
+  officielle d'extensions. On peut donc y charger de vraies extensions Chrome.
+
+> ⚠️ **Limites assumées (documentées par Electron)** : Electron supporte les extensions
+> *dépaquetées*, pas les `.crx` tels quels (on les dépaquète nous-mêmes). Il ne garantit pas
+> toutes les API Chrome : `chrome.action`/`browserAction`, `declarativeNetRequest`
+> (→ les bloqueurs MV3), `alarms`, `contextMenus` ne sont **pas** dans la liste supportée.
+> Ces extensions s'installent mais sont signalées comme incompatibles dans le gestionnaire.
+> IDEM pour GeckoView : seuls les add-ons **signés par Mozilla** s'installent, et Firefox
+> pour Android est surtout **MV2** aujourd'hui.
+
+## Ce que fait Plimb Browser
 
 **Commun**
-- Onglets multiples, réouverture des liens, navigation arrière/avant
-- Barre d'adresse intelligente (URL ou recherche)
-- Bloqueur de publicité et de traqueurs (filtrage réseau par hôte)
-- Système d'extensions activable/désactivable par extension
-- Mode sombre, aucune télémétrie
+- Onglets multiples, réouverture des liens dans un onglet, navigation arrière/avant
+- Barre d'adresse intelligente (URL ou recherche), moteurs : DuckDuckGo, Google, Bing, Ecosia
+- Bloqueur de publicité et de traqueurs : **~95 domaines** filtrés avant chargement
+- Gestionnaire d'extensions dans l'application : activer/désactiver/supprimer, installation
+- Mode sombre, aucune télémétrie, aucune requête vers nos serveurs
 
 **Android**
-- Intent `ACTION_VIEW` (ouvrir un lien depuis une autre app) et `ACTION_SEND`
-- Téléchargements via le `DownloadManager` avec notification
-- Envoi de fichiers vers les formulaires (`<input type=file>`)
-- Choix du moteur de recherche, mode « version ordinateur », activation de JavaScript
-- Restauration des onglets au démarrage
-- Pop-ups (`target=_blank`, `window.open`) ouverts dans un onglet
+- Catalogue d'add-ons Mozilla **intégré** : recherche + installation en 1 tap
+- Installation depuis un fichier `.xpi` ou une URL
+- Extensions intégrées au navigateur : **Plimb Bloqueur** (blocage réseau),
+  **Mode sombre universel**, **Anti bannières cookies**
+- Téléchargements (MediaStore / dossier Downloads), envoi de fichiers dans les formulaires,
+  plein écran, permissions caméra/micro/géolocalisation, restauration des onglets
+- Intents `ACTION_VIEW` et `ACTION_SEND` (ouvrir un lien depuis une autre app)
 
 **Windows**
-- Application portable : un seul `.exe`, rien à installer
-- Téléchargements avec barre de progression
-- Pop-ups ouverts dans un onglet
-- Extensions ajoutables par l'utilisateur (dossier `extensions/` dans les données utilisateur)
-- Raccourcis clavier (`Ctrl+T`, `Ctrl+W`, `Ctrl+L`, `Ctrl+R`, `Alt+←/→`)
+- Application **portable** : un `.exe`, rien à installer, données dans `%APPDATA%`
+- Gestionnaire d'extensions complet (façon `chrome://extensions`) : dossier non empaqueté,
+  `.crx`, téléchargement direct depuis le Chrome Web Store
+- Extensions intégrées : **Mode sombre universel**, **Anti bannières cookies**,
+  **Bouton Picture-in-Picture**
+- Téléchargements avec progression, pop-ups dans un onglet, raccourcis clavier
 
 ## Compiler soi-même
 
 ### Android
 ```bash
 cd android
-./gradlew assembleDebug        # APK prête à installer
-# ou assembleRelease (nécessite un keystore, voir la CI)
+./gradlew assembleDebug        # android/app/build/outputs/apk/debug/
+# ou assembleRelease (keystore : voir la CI)
 ```
-Ouvres simplement le dossier `android/` dans Android Studio (Hedgehog ou plus récent).
+Ouvres simplement `android/` dans Android Studio (Iguana ou plus récent).
 
 ### Windows
 ```bash
 cd windows
 npm install
-npm start                      # lancement en développement
-npm run dist:portable          # construit l'exe portable dans dist-electron/
+npm start                      # developpement
+npm run dist:portable          # exe portable dans dist-electron/
 ```
 
-## CI / CD (GitHub Actions)
-
-À chaque `push` sur `main`, deux workflows compilent le projet :
+## CI / CD
 
 | Workflow | Fichier | Résultat |
 |----------|---------|----------|
-| **Android · compilation de l'APK** | `.github/workflows/android.yml` | artefact `plimb-browser-android-debug` (APK) |
-| **Windows · application portable** | `.github/workflows/windows.yml` | artefact `plimb-browser-windows-portable` (`.exe`) |
-
-Sur un tag `v*` (ex. `v1.0.0`), `.github/workflows/release.yml` recompile tout et publie une
-**GitHub Release** avec l'APK Android et l'exe Windows portable.
+| **Android · compilation de l'APK** | `.github/workflows/android.yml` | artefact `plimb-browser-android-debug` |
+| **Windows · application portable** | `.github/workflows/windows.yml` | artefact `plimb-browser-windows-portable` |
+| **Release** | `.github/workflows/release.yml` | sur un tag `v*`, GitHub Release avec l'APK + l'exe |
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-La compilation Android publie aussi une APK *release* signée si les secrets suivants existent :
-`PLIMB_KEYSTORE` (keystore encodé en base64), `PLIMB_STORE_PASSWORD`, `PLIMB_KEY_ALIAS`.
-Sans ces secrets, une APK release signée avec la clé de test est produite pour vérifier la chaîne.
+La chaîne Gradle est générée en CI (`gradle wrapper --gradle-version 8.9`) car le JAR du
+wrapper n'est pas versionné. L'APK release n'est signée qu'avec les secrets
+`PLIMB_KEYSTORE` / `PLIMB_STORE_PASSWORD` / `PLIMB_KEY_ALIAS` (sinon : clé de test).
 
 ## Système d'extensions
 
-Chaque extension est un dossier :
+### Android (WebExtensions GeckoView)
+Chaque extension intégrée est un dossier avec un `manifest.json` standard :
 
 ```
 mon-extension/
-├── manifest.json
-└── script.js
+├── manifest.json     # manifest_version, content_scripts, browser_specific_settings.gecko.id
+├── background.js     # scripts de fond (MV2)
+└── contenu.js        # scripts injectes
 ```
 
-`manifest.json` :
+Dans `assets/extensions/` : `blocker/` (blocage réseau via `webRequest`),
+`dark-theme/`, `cookie-banner/`. Le gestionnaire (menu **Extensions**) liste les add-ons
+installés et permet d'activer/désactiver/supprimer, plus l'accès au catalogue Mozilla.
 
-```json
-{
-  "id": "mon-extension",
-  "name": "Mon extension",
-  "version": "1.0.0",
-  "description": "Ce que fait l'extension",
-  "author": "Plimb",
-  "defaultEnabled": true,
-  "matches": ["*://*/*"],
-  "runAt": "document_start",
-  "js": ["script.js"]
-}
-```
+### Windows (extensions Chrome)
+Même principe, format Chrome standard (`content_scripts`, `permissions`). Le gestionnaire
+permet en plus :
+- **Dossier non empaqueté** (mode développeur Chrome) ;
+- **Fichier `.crx`** — dépaqueté automatiquement par `src/crx.js` (lecture de l'en-tête CRX2/3
+  puis extraction ZIP stored/deflate) ;
+- **Chrome Web Store** — l'ID (32 caractères) ou l'URL d'une fiche ; le `.crx` signé est
+  téléchargé depuis `clients2.google.com`, dépaqueté puis chargé.
 
-- `matches` : filtres au format Chrome (`*://*/*`, `https://*.wikipedia.org/*`, `<all_urls>`)
-- `runAt` : `document_start` ou `document_end` (injection sur les deux plateformes)
-- `js` : fichiers injectés dans la page, dans l'ordre
-
-Android : extensions intégrées dans `android/app/src/main/assets/extensions/`, extensions utilisateur
-dans `.../files/extensions/user/` (installables depuis une URL via le menu Extensions).
-Windows : intégrées dans `windows/extensions/`, utilisateur dans `%APPDATA%/plimb-browser/extensions/`.
-
-Extensions livrées avec le navigateur : **Mode sombre universel**, **Anti bannières cookies**
-et, sur Windows, **Bouton Picture-in-Picture pour les vidéos**.
+Les extensions installées manuellement vivent dans
+`%APPDATA%/plimb-browser/extensions/` (bouton « Ouvrir le dossier extensions »).
 
 ## Bloqueur de publicité
 
-Le blocage se fait au niveau réseau (requête annulée avant chargement) en comparant l'hôte demandé
-avec une liste :
+Le filtrage se fait **avant** le chargement de la requête, sur l'hôte demandé :
 
-- Android : `android/app/src/main/assets/adblock/hosts.txt`
-- Windows : `windows/blocklist.txt`
+- Android : extension intégrée `extensions/blocker/background.js` (`browser.webRequest`)
+- Windows : `windows/blocklist.txt` + `session.webRequest` dans `src/main.js`
 
-Les deux fichiers ont le même contenu et peuvent être enrichis. Une liste perso peut aussi être ajoutée
-(`blocklist.txt` dans les données de l'application).
+Même liste des deux côtés (~95 régies publicitaires, réseaux mobile, analytics, pop-under).
 
 ## Structure du dépôt
 
 ```
 plimb-browser/
-├── android/                    # Application Android (Kotlin, Gradle)
+├── android/                         # app Android — moteur GeckoView (Firefox)
 │   ├── app/src/main/
-│   │   ├── assets/             # home.html, extensions/, adblock/
-│   │   └── java/dev/kurodaki/plimb/
+│   │   ├── assets/                  # home.html, extensions/ (WebExtensions integrees)
+│   │   └── java/dev/kurodaki/plimb/ # MainActivity, AddonManager, AmoClient, …
 │   └── build.gradle.kts
-├── windows/                    # Application Windows (Electron)
-│   ├── src/                    # main, preload, renderer
-│   ├── extensions/             # extensions intégrées
-│   └── package.json            # config electron-builder (portable)
-├── .github/workflows/          # CI : APK + portable + release
-├── LICENSE                     # MIT © 2026 Kurodaki
+├── windows/                         # app Windows — Electron/Chromium
+│   ├── src/                         # main.js, preload.js, renderer.js, crx.js
+│   ├── extensions/                  # extensions Chrome integrees (MV2)
+│   └── blocklist.txt
+├── .github/workflows/               # CI : APK + portable + release
+├── LICENSE                          # MIT © 2026 Kurodaki
 └── README.md
 ```
 
-## Note technique sur « basé sur Chromium »
+## Feuille de route
 
-Plimb Browser utilise le **moteur Chromium** : sur Android via le `WebView` système
-(qui est le composant Chromium officiel du système), sur Windows via Electron (Chromium empaqueté).
-Même base de rendu que Chrome : compatibilité des standards web, WebRTC, WebGL, PWA, affichage des pages.
-
-Compiler un **fork complet de Chromium** (dépôt `chromium/src`, plus de 15 Go, plusieurs heures de
-`gclient sync` puis compilation) est un projet séparé : ce dépôt est autonome et compilable en quelques
-minutes, tout en reposant sur le même moteur de rendu.
-
-### Feuille de route
-
-- [ ] Synchronisation des onglets entre Android et Windows
+- [ ] Android : fork Chromium (Kiwi/Kiwi-Next) pour accéder au **Chrome** Web Store —
+      projet séparé, multi-Go, heures de compilation
+- [ ] Windows : shim de compatibilité `declarativeNetRequest` pour les bloqueurs MV3
 - [ ] Import d'une liste EasyList complète via URL
-- [ ] Support des extensions `manifest v3`
+- [ ] Synchronisation des onglets Android ↔ Windows
 - [ ] Version Linux (AppImage) via le même socle Electron
 
 ## Contribuer
 
-1. Forke le dépôt
-2. Crée ta branche : `git checkout -b feat/ma-fonctionnalite`
-3. Commit : `git commit -m "feat: ..."`
-4. Pousse et ouvre une Pull Request
+Forke, crée une branche `feat/…`, commit `feat: …`, ouvre une Pull Request.
 
 ## Licence
 
