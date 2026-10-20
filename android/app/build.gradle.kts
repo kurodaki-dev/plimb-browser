@@ -5,11 +5,11 @@ plugins {
 
 android {
     namespace = "dev.kurodaki.plimb"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.kurodaki.plimb"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -17,7 +17,7 @@ android {
     }
 
     signingConfigs {
-        // La signature release n'est utilisée que si un keystore est fourni via les variables
+        // La signature release n'est utilisee que si un keystore est fourni via les variables
         // d environnement PLIMB_KEYSTORE / PLIMB_STORE_PASSWORD / PLIMB_KEY_ALIAS / PLIMB_KEY_PASSWORD
         // (voir .github/workflows/android.yml).
         create("release") {
@@ -75,4 +75,8 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // Moteur de rendu Firefox (GeckoView) : ce moteur expose un vrai systeme d extensions
+    // WebExtensions, contrairement au WebView systeme.
+    implementation("org.mozilla.geckoview:geckoview:141.+")
 }

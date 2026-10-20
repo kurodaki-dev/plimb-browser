@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "Plimb Bloqueur",
+  "version": "1.0.0",
+  "description": "Bloque les publicites et les traqueurs avant leur chargement (liste integree Plimb).",
+  "author": "Plimb Team",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "plimb-blocker@plimb.browser"
+    }
+  },
+  "permissions": ["webRequest", "webRequestBlocking", "<all_urls>"],
+  "background": {
+    "scripts": ["background.js"]
+  }
+}
