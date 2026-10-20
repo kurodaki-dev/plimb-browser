@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'" />
+  <title>Plimb Browser</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="tabstrip">
+    <div id="tabs"></div>
+    <button id="new-tab" class="strip-button" title="Nouvel onglet (Ctrl+T)">+</button>
+  </header>
+
+  <nav id="toolbar">
+    <button id="btn-back" class="tool-button" title="Précédent (Alt+←)" disabled>←</button>
+    <button id="btn-forward" class="tool-button" title="Suivant (Alt+→)" disabled>→</button>
+    <button id="btn-reload" class="tool-button" title="Recharger (Ctrl+R)">⟳</button>
+    <button id="btn-home" class="tool-button" title="Nouvel onglet">⌂</button>
+    <input id="url-input" type="text" placeholder="Adresse ou recherche" autocomplete="off" spellcheck="false" />
+    <button id="btn-extensions" class="tool-button" title="Extensions">🧩</button>
+    <button id="btn-menu" class="tool-button" title="Menu">⋮</button>
+  </nav>
+
+  <main id="views"></main>
+
+  <div id="downloads" hidden></div>
+
+  <div id="menu" hidden>
+    <div class="menu-title">Moteur de recherche</div>
+    <label class="menu-item"><input type="radio" name="engine" value="duckduckgo" /> DuckDuckGo</label>
+    <label class="menu-item"><input type="radio" name="engine" value="google" /> Google</label>
+    <label class="menu-item"><input type="radio" name="engine" value="bing" /> Bing</label>
+    <label class="menu-item"><input type="radio" name="engine" value="ecosia" /> Ecosia</label>
+
+    <div class="menu-separator"></div>
+    <div class="menu-title">Extensions</div>
+    <ul id="ext-list"></ul>
+
+    <div class="menu-separator"></div>
+    <div class="menu-item muted">Bloqueur de publicité actif · <span id="blocked-count">…</span> domaines</div>
+    <div class="menu-item muted">Dossier extensions : %APPDATA%\plimb-browser\extensions</div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

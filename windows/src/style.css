@@ -1,0 +1,206 @@
+:root {
+  --bg: #0b1220;
+  --panel: #131c2e;
+  --panel-2: #16223a;
+  --border: #24304d;
+  --text: #e6edf7;
+  --muted: #93a4c0;
+  --accent: #2563eb;
+  --orange: #f97316;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+#app-shell, body { display: flex; flex-direction: column; }
+
+/* ---------------------------------------------------------- barre d onglets */
+#tabstrip {
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  padding-left: 6px;
+}
+
+#tabs {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 140px;
+  max-width: 240px;
+  padding: 0 8px 0 12px;
+  border-right: 1px solid var(--border);
+  background: var(--panel-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab.active { background: var(--bg); box-shadow: inset 0 2px 0 var(--accent); }
+.tab.loading .tab-title { opacity: 0.6; }
+
+.tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tab-close:hover { background: #2b3a5c; color: #fff; }
+
+.strip-button {
+  width: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.strip-button:hover { background: #1d2a45; color: #fff; }
+
+/* ------------------------------------------------------------- toolbar */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.tool-button {
+  min-width: 32px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.tool-button:hover:not(:disabled) { background: #223252; }
+.tool-button:disabled { opacity: 0.35; cursor: default; }
+
+#url-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #0e1728;
+  color: var(--text);
+  outline: none;
+  font-size: 14px;
+}
+
+#url-input:focus { border-color: var(--accent); background: #101d33; }
+
+/* ------------------------------------------------------------- vues */
+#views {
+  position: relative;
+  flex: 1;
+  background: #ffffff;
+}
+
+webview { height: 100%; width: 100%; }
+
+/* ------------------------------------------------------------- telechargements */
+#downloads {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  z-index: 5;
+}
+
+/* ------------------------------------------------------------- menu */
+#menu {
+  position: fixed;
+  top: 76px;
+  right: 10px;
+  width: 290px;
+  padding: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+}
+
+.menu-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin: 4px 0 6px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-item:hover { background: #223252; }
+.menu-item.muted { color: var(--muted); font-size: 12px; align-items: flex-start; }
+.menu-separator { height: 1px; background: var(--border); margin: 8px 0; }
+
+#ext-list { list-style: none; margin: 0; padding: 0; }
+
+#ext-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+#ext-list li:hover { background: #223252; }
+
+.tag {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
