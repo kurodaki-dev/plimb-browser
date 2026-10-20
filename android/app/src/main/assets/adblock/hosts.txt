@@ -1,0 +1,102 @@
+# Liste de blocage Plimb Browser
+# Une entree par ligne. Les lignes commencant par # ou ! sont ignorees.
+# Formats acceptes : "domaine.tld"  ou  "0.0.0.0 domaine.tld"
+# Les sous-domaines sont bloques automatiquement.
+
+# --- Regies publicitaires (bannières, vidéos, display) ---
+doubleclick.net
+2mdn.net
+googleadservices.com
+googlesyndication.com
+googletagservices.com
+googletagmanager.com
+google-analytics.com
+adservice.google.com
+ads.google.com
+
+# --- Reseaux publicitaires ---
+adnxs.com
+adform.net
+adsrvr.org
+pubmatic.com
+rubiconproject.com
+openx.net
+smartadserver.com
+indexww.com
+casalemedia.com
+sharethrough.com
+triplelift.com
+districtm.io
+sonobi.com
+gumgum.com
+media.net
+bidswitch.net
+spotxchange.com
+spotx.tv
+aniview.com
+criteo.com
+criteo.net
+taboola.com
+outbrain.com
+mgid.com
+revcontent.com
+
+# --- Mobile ---
+adcolony.com
+applovin.com
+chartboost.com
+vungle.com
+inmobi.com
+startapp.com
+mopub.com
+unityads.unity3d.com
+appsflyer.com
+adjust.com
+kochava.com
+branch.io
+
+# --- Amazon, Microsoft, Apple ---
+amazon-adsystem.com
+bat.bing.com
+
+# --- Mesure d audience / analytics ---
+scorecardresearch.com
+quantserve.com
+chartbeat.com
+amplitude.com
+mixpanel.com
+segment.com
+segment.io
+optimizely.com
+vwo.com
+abtasty.com
+hotjar.com
+mouseflow.com
+crazyegg.com
+fullstory.com
+clarity.ms
+
+# --- Pop-under / reseaux aggressifs ---
+popads.net
+popcash.net
+propellerads.com
+adsterra.com
+exoclick.com
+juicyads.com
+trafficstars.com
+clickadu.com
+adcash.com
+
+# --- TikTok / Yandex ---
+ads.tiktok.com
+analytics.tiktok.com
+an.yandex.ru
+ads.yandex.ru
+
+# --- Widgets sociaux / partage ---
+addthis.com
+sharethis.com
+
+# --- Exemples de format "hosts" (aussi acceptes) ---
+0.0.0.0 ad.doubleclick.net
+0.0.0.0 pagead2.googlesyndication.com

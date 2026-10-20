@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Plimb Browser</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(160deg, #2563eb 0%, #1e3a8a 45%, #0f172a 100%);
+      color: #f8fafc;
+      min-height: 100vh;
+      padding: 32px 20px 48px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 14px;
+      background: #ffffff; color: #2563eb;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 22px;
+    }
+    h1 { font-size: 26px; margin: 0; }
+    h1 span { color: #f97316; }
+    p.tagline { margin: 6px 0 26px; opacity: .8; font-size: 13px; }
+    form { display: flex; gap: 8px; }
+    input {
+      flex: 1; padding: 14px 16px; border: 0; border-radius: 14px;
+      background: rgba(255,255,255,.14); color: #fff; font-size: 15px;
+      outline: none;
+    }
+    input::placeholder { color: rgba(255,255,255,.65); }
+    button {
+      border: 0; border-radius: 14px; padding: 0 18px;
+      background: #f97316; color: #fff; font-weight: 700; font-size: 15px;
+    }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; opacity: .7; margin: 28px 0 10px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    a.tile {
+      display: block; padding: 14px; border-radius: 14px; text-decoration: none;
+      background: rgba(255,255,255,.12); color: #fff; font-size: 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    a.tile small { display: block; opacity: .7; font-size: 11px; }
+    footer { margin-top: 30px; font-size: 11px; opacity: .6; }
+  </style>
+</head>
+<body>
+  <div class="brand">
+    <div class="logo">P</div>
+    <div>
+      <h1>Plimb <span>Browser</span></h1>
+      <p class="tagline">Android · Windows · moteur Chromium</p>
+    </div>
+  </div>
+
+  <form id="q">
+    <input id="term" type="text" placeholder="Adresse ou recherche" autocomplete="off" autocapitalize="off" spellcheck="false" />
+    <button type="submit">Go</button>
+  </form>
+
+  <h2>Raccourcis</h2>
+  <div class="grid">
+    <a class="tile" href="https://duckduckgo.com">🔍 <span>DuckDuckGo<small>Recherche privée</small></span></a>
+    <a class="tile" href="https://fr.wikipedia.org">📚 <span>Wikipédia<small>Encyclopédie libre</small></span></a>
+    <a class="tile" href="https://www.youtube.com">▶️ <span>YouTube<small>Vidéos</small></span></a>
+    <a class="tile" href="https://github.com/kurodaki-dev/plimb-browser">🐙 <span>GitHub<small>Le projet Plimb</small></span></a>
+    <a class="tile" href="https://www.reddit.com">👽 <span>Reddit<small>Actualités</small></span></a>
+    <a class="tile" href="https://translate.google.com">🌐 <span>Traduction<small>Google Translate</small></span></a>
+  </div>
+
+  <footer>Plimb Browser · aucune télémétrie, bloqueur de publicité intégré, extensions activables.</footer>
+
+  <script>
+    document.getElementById('q').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var value = document.getElementById('term').value.trim();
+      if (!value) return;
+      var looksLikeUrl = value.indexOf('.') > 0 && value.indexOf(' ') === -1 && value.indexOf('://') === -1;
+      if (looksLikeUrl) {
+        location.href = 'https://' + value;
+      } else {
+        location.href = 'https://duckduckgo.com/?q=' + encodeURIComponent(value);
+      }
+    });
+  </script>
+</body>
+</html>
