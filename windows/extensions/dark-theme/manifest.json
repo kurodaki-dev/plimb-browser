@@ -1,0 +1,12 @@
+{
+  "id": "dark-theme",
+  "name": "Mode sombre universel",
+  "version": "1.0.0",
+  "description": "Force un theme sombre sur tous les sites visites.",
+  "author": "Plimb Team",
+  "homepage": "https://github.com/kurodaki-dev/plimb-browser",
+  "defaultEnabled": true,
+  "matches": ["*://*/*"],
+  "runAt": "document_start",
+  "js": ["dark.js"]
+}
