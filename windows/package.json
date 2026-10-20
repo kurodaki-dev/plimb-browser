@@ -2,7 +2,7 @@
   "name": "plimb-browser",
   "productName": "Plimb Browser",
   "version": "1.0.0",
-  "description": "Plimb Browser — navigateur web open source base sur Chromium (Electron), avec systeme d extensions et bloqueur de publicite.",
+  "description": "Plimb Browser — navigateur web open source base sur Chromium (Electron), avec veritables extensions Chrome et bloqueur de publicite.",
   "license": "MIT",
   "author": "Kurodaki <https://github.com/kurodaki-dev>",
   "main": "src/main.js",
@@ -14,8 +14,7 @@
     "dist": "electron-builder --win portable nsis --publish never"
   },
   "devDependencies": {
-    "electron": "31.0.0",
-    "electron-builder": "24.13.3"
+    "electron": "44.9.0"
   },
   "build": {
     "appId": "dev.kurodaki.plimb",
