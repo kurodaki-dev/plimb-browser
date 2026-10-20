@@ -11,7 +11,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.os.Message
 import android.provider.MediaStore
 import android.util.Log
 import android.view.Menu
@@ -19,9 +18,6 @@ import android.view.MenuItem
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.URLUtil
-import android.webkit.ValueCallback
-import android.webkit.WebChromeClient
-import android.webkit.WebView
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -81,6 +77,7 @@ class MainActivity : AppCompatActivity() {
 
     private val tabs = mutableListOf<PlimbTab>()
     private var currentIndex = -1
+    private var lastJsEnabled = true
 
     private val prefs by lazy { Prefs.settings(this) }
     private val runtime: GeckoRuntime by lazy {
@@ -123,6 +120,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         bindViews()
         setSupportActionBar(toolbar)
+        lastJsEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
 
         registerExtensionDelegates()
         AddonManager.installBuiltIns(runtime)
@@ -152,6 +150,15 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         currentTab()?.session?.setActive(true)
+
+        // Le reglage « JavaScript » des parametres est applique a chaud.
+        val jsEnabled = prefs.getBoolean(Prefs.KEY_JS, true)
+        if (jsEnabled != lastJsEnabled) {
+            lastJsEnabled = jsEnabled
+            tabs.forEach { tab ->
+                tab.session.settings.allowJavascript = jsEnabled
+            }
+        }
     }
 
     override fun onDestroy() {
