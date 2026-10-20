@@ -1,0 +1,21 @@
+# ---------- Android ----------
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/release/
+android/gradle/wrapper/gradle-wrapper.jar
+android/captures/
+
+# ---------- Node / Electron (Windows) ----------
+windows/node_modules/
+windows/dist/
+windows/dist-electron/
+npm-debug.log*
+yarn-error.log*
+
+# ---------- Général ----------
+.DS_Store
+Thumbs.db
+*.log
