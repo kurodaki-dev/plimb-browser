@@ -255,7 +255,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyTheme() {
         val dark = prefs.getBoolean(Prefs.KEY_DARK, false)
         AppCompatDelegate.setDefaultNightMode(
-            if (dark) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+            if (dark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         )
     }
 
@@ -289,7 +289,7 @@ class MainActivity : AppCompatActivity() {
         btnForward.setOnClickListener { currentWeb()?.takeIf { it.canGoForward() }?.goForward() }
         btnReload.setOnClickListener {
             val web = currentWeb() ?: return@setOnClickListener
-            if ((web.progress) in 1..99) web.stopLoading() else web.reload()
+            if (web.progress in 1..99) web.stopLoading() else web.reload()
         }
         btnHome.setOnClickListener { navigate(HOME_PAGE) }
         btnNewTab.setOnClickListener { openTab(HOME_PAGE) }
@@ -384,7 +384,7 @@ class MainActivity : AppCompatActivity() {
         val web = currentWeb()
         btnBack.isEnabled = web?.canGoBack() == true
         btnForward.isEnabled = web?.canGoForward() == true
-        val loading = (web?.progress ?: 0) in 1..99
+        val loading = web.progress in 1..99
         btnReload.setImageResource(if (loading) R.drawable.ic_close else R.drawable.ic_refresh)
         btnTabs.text = tabs.size.toString()
         if (!urlBar.hasFocus()) urlBar.setText(web?.url ?: "")

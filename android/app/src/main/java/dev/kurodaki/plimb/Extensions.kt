@@ -1,6 +1,7 @@
 package dev.kurodaki.plimb
 
-import com.google.gson.Gson
+import android.content.Context
+import android.webkit.WebView
 
 /**
  * Modele d une extension Plimb (format compatible avec les manifests d extensions
@@ -20,11 +21,11 @@ data class Extension(
     var bundled: Boolean = false,
     var baseDir: String = ""
 ) {
-    fun isEnabled(context: android.content.Context): Boolean =
+    fun isEnabled(context: Context): Boolean =
         Prefs.extensionPrefs(context).getBoolean("enabled_$id", defaultEnabled)
 
-    fun setEnabled(context: android.content.Context, value: Boolean) {
-        Prefs.extensionPrefs(context).edit { putBoolean("enabled_$id", value) }
+    fun setEnabled(context: Context, value: Boolean) {
+        Prefs.extensionPrefs(context).edit().putBoolean("enabled_$id", value).apply()
     }
 }
 
@@ -37,7 +38,7 @@ object Extensions {
     private const val ASSETS_DIR = "extensions"
     const val USER_DIR = "extensions/user"
 
-    private val gson = Gson()
+    private val gson = com.google.gson.Gson()
     private val cache = mutableListOf<Extension>()
 
     /** Vide le cache (apres une installation ou une suppression). */
@@ -46,7 +47,7 @@ object Extensions {
     }
 
     /** Toutes les extensions disponibles (integrees + utilisateur). */
-    fun all(context: android.content.Context): List<Extension> {
+    fun all(context: Context): List<Extension> {
         synchronized(cache) {
             if (cache.isEmpty()) {
                 loadBundled(context.applicationContext)
@@ -56,7 +57,7 @@ object Extensions {
         }
     }
 
-    private fun loadBundled(context: android.content.Context) {
+    private fun loadBundled(context: Context) {
         val ids = runCatching { context.assets.list(ASSETS_DIR) }.getOrNull() ?: return
         ids.filter { it.isNotBlank() }.forEach { id ->
             val dir = "$ASSETS_DIR/$id"
@@ -69,7 +70,7 @@ object Extensions {
         }
     }
 
-    private fun loadUser(context: android.content.Context) {
+    private fun loadUser(context: Context) {
         val userDir = java.io.File(context.filesDir, USER_DIR)
         val dirs = userDir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: return
         for (dir in dirs) {
@@ -86,12 +87,13 @@ object Extensions {
         runCatching { gson.fromJson(json, Extension::class.java) }.getOrNull()
             ?.takeIf { it.id.isNotBlank() && it.js.isNotEmpty() }
 
-    private fun readAsset(context: android.content.Context, path: String): String? =
+    /** Lit un fichier des assets (aussi utilise par le bloqueur). */
+    fun readAsset(context: Context, path: String): String? =
         runCatching {
             context.assets.open(path).bufferedReader().use { it.readText() }
         }.getOrNull()
 
-    fun readScript(context: android.content.Context, ext: Extension, file: String): String? =
+    fun readScript(context: Context, ext: Extension, file: String): String? =
         runCatching {
             if (ext.bundled) readAsset(context, "${ext.baseDir}/$file")
             else java.io.File(ext.baseDir, file).readText()
@@ -101,12 +103,12 @@ object Extensions {
      * Injecte dans la page tous les scripts des extensions actives dont les
      * filtres correspondent a l URL. A appeler sur `onPageFinished`.
      */
-    fun inject(context: android.content.Context, webView: android.webkit.WebView) {
+    fun inject(context: Context, webView: WebView) {
         val url = webView.url ?: return
         for (ext in all(context)) {
             if (!ext.isEnabled(context)) continue
-            val matches = ext.matches.mapNotNull { MatchPatterns.compile(it) }
-            if (matches.isEmpty() || matches.none { it.matches(url) }) continue
+            val patterns = ext.matches.mapNotNull { MatchPatterns.compile(it) }
+            if (patterns.isEmpty() || patterns.none { it.matches(url) }) continue
             for (file in ext.js) {
                 val code = readScript(context, ext, file) ?: continue
                 webView.evaluateJavascript(code, null)
@@ -119,7 +121,7 @@ object Extensions {
      * Retourne l extension creee, ou null en cas d echec.
      */
     fun installUserScript(
-        context: android.content.Context,
+        context: Context,
         id: String,
         name: String,
         source: String,
@@ -141,15 +143,14 @@ object Extensions {
             bundled = false,
             baseDir = dir.absolutePath
         )
-        runCatching {
-            java.io.File(dir, "manifest.json").writeText(gson.toJson(ext))
-        }.getOrNull() ?: return null
+        runCatching { java.io.File(dir, "manifest.json").writeText(gson.toJson(ext)) }
+            .getOrNull() ?: return null
         reset()
         return ext
     }
 
     /** Supprime une extension utilisateur. */
-    fun removeUser(context: android.content.Context, id: String): Boolean {
+    fun removeUser(context: Context, id: String): Boolean {
         val dir = java.io.File(context.applicationContext.filesDir, "$USER_DIR/$id")
         val deleted = !dir.exists() || dir.deleteRecursively()
         reset()
