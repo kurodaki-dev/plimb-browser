@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android (APK)
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
+  windows:
+    name: Windows (portable)
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
+
+  publish:
+    name: Publier la GitHub Release
+    runs-on: ubuntu-latest
+    needs: [android, windows]
+    steps:
+      - name: Récupérer les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Nommer les fichiers
+        run: |
+          mkdir -p release
+          find artifacts -name "*.apk" -not -name "*-unsigned.apk" -exec cp {} release/Plimb-Browser-Android.apk \; || true
+          find artifacts -name "*.exe" -exec cp {} release/Plimb-Browser-Windows-Portable.exe \;
+          ls -la release
+
+      - name: Publier la release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Plimb Browser ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          fail_on_unmatched_files: true
+          files: |
+            release/*.apk
+            release/*.exe

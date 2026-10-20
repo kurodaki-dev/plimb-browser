@@ -1,0 +1,54 @@
+name: Windows · application portable
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    name: Exécutable Windows portable
+    runs-on: windows-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installer les dépendances
+        working-directory: windows
+        run: npm install --no-audit --no-fund
+
+      - name: Compiler la version portable
+        working-directory: windows
+        run: npx electron-builder --win portable --publish never
+
+      - name: Publier l'exécutable portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: plimb-browser-windows-portable
+          path: windows/dist-electron/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Lister les fichiers produits
+        working-directory: windows
+        run: Get-ChildItem -Recurse dist-electron | Select-Object FullName

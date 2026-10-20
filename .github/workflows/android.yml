@@ -1,0 +1,104 @@
+name: Android · compilation de l'APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Installer Gradle 8.7
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+
+      # Le wrapper Gradle est généré ici car le JAR binaire ne peut pas être versionné proprement.
+      - name: Générer le wrapper Gradle
+        working-directory: android
+        run: gradle wrapper --gradle-version 8.7 --distribution-type bin
+
+      - name: Compiler l'APK debug
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Publier l'APK debug (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: plimb-browser-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Vérifier la signature release
+        id: signing
+        env:
+          PLIMB_KEYSTORE: ${{ secrets.PLIMB_KEYSTORE }}
+        run: |
+          if [ -n "$PLIMB_KEYSTORE" ]; then
+            echo "$PLIMB_KEYSTORE" | base64 -d > "$RUNNER_TEMP/plimb.keystore"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "keystore=$RUNNER_TEMP/plimb.keystore" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Aucun keystore configuré : l'APK release sera signée avec la clé de test."
+          fi
+
+      - name: Compiler l'APK release signée
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: android
+        env:
+          PLIMB_KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          PLIMB_STORE_PASSWORD: ${{ secrets.PLIMB_STORE_PASSWORD }}
+          PLIMB_KEY_ALIAS: ${{ secrets.PLIMB_KEY_ALIAS }}
+          PLIMB_KEY_PASSWORD: ${{ secrets.PLIMB_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Publier l'APK release signée
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plimb-browser-android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Compiler l'APK release (clé de test)
+        if: steps.signing.outputs.enabled == 'false'
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Publier l'APK release (clé de test)
+        if: steps.signing.outputs.enabled == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plimb-browser-android-release-unsigned
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 7
