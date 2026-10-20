@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="@string/general">
+
+        <ListPreference
+            android:defaultValue="duckduckgo"
+            android:key="search_engine"
+            android:title="@string/search_engine" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="block_ads"
+            android:title="@string/block_ads" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="desktop_mode"
+            android:title="@string/desktop_mode" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="javascript"
+            android:title="@string/javascript" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="dark_mode"
+            android:title="@string/dark_mode" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="restore_tabs"
+            android:title="@string/restore_tabs" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/extensions">
+        <Preference
+            android:key="open_extensions"
+            android:summary="@string/extensions_intro"
+            android:title="@string/open_extensions" />
+    </PreferenceCategory>
+</PreferenceScreen>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Plimb Browser</string>
+    <string name="url_hint">Adresse ou recherche</string>
+    <string name="back">Précédent</string>
+    <string name="forward">Suivant</string>
+    <string name="reload">Recharger</string>
+    <string name="stop">Arrêter</string>
+    <string name="home">Accueil</string>
+    <string name="new_tab">Nouvel onglet</string>
+    <string name="tabs">Onglets</string>
+    <string name="share">Partager</string>
+    <string name="extensions">Extensions</string>
+    <string name="settings">Paramètres</string>
+    <string name="quit">Quitter</string>
+    <string name="block_ads">Bloqueur de publicité</string>
+    <string name="block_ads_on">Blocage des publicités activé</string>
+    <string name="block_ads_off">Blocage des publicités désactivé</string>
+    <string name="desktop_mode">Mode ordinateur</string>
+    <string name="search_engine">Moteur de recherche</string>
+    <string name="javascript">JavaScript</string>
+    <string name="dark_mode">Thème sombre</string>
+    <string name="restore_tabs">Restaurer les onglets au démarrage</string>
+    <string name="general">Général</string>
+    <string name="open_extensions">Gérer les extensions</string>
+    <string name="extensions_intro">Activez ou désactivez les scripts injectés dans les pages visitées.</string>
+    <string name="download_started">Téléchargement de %1$s démarré</string>
+    <string name="download_failed">Impossible de télécharger %1$s</string>
+    <string name="error_no_app">Aucune application ne peut ouvrir ce lien</string>
+    <string name="close_tab">Fermer l\'onglet</string>
+    <string name="ext_install_title">Installer une extension</string>
+    <string name="ext_name_hint">Nom (facultatif)</string>
+    <string name="ext_url_hint">URL du script (.js ou .user.js)</string>
+    <string name="ext_install_action">Installer</string>
+    <string name="ext_install_ok">%1$s installée</string>
+    <string name="ext_install_error">Installation impossible</string>
+    <string name="ext_bundled">Intégrée</string>
+    <string name="ext_user">Utilisateur</string>
+    <string name="ext_delete">Supprimer</string>
+    <string name="ext_delete_confirm">Supprimer %1$s ?</string>
+    <string name="ext_deleted">%1$s supprimée</string>
+    <string name="ext_refresh">Actualiser</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_reload"
+        android:icon="@drawable/ic_refresh"
+        android:title="@string/reload"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_share"
+        android:icon="@drawable/ic_share"
+        android:title="@string/share"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_extensions"
+        android:icon="@drawable/ic_extension"
+        android:title="@string/extensions"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_block_ads"
+        android:checkable="true"
+        android:title="@string/block_ads"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_desktop"
+        android:checkable="true"
+        android:title="@string/desktop_mode"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/settings"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_quit"
+        android:title="@string/quit"
+        app:showAsAction="never" />
+</menu>
