@@ -1,19 +1,27 @@
 'use strict';
 
 /**
- * Preload du renderer (chrome de l application) : expose une API bornee
- * au monde JS de la page via contextBridge.
+ * Preload du renderer : expose une API bornee au monde JS de la page
+ * (gestion des extensions, telechargements, preferences).
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('plimb', {
   appVersion: () => ipcRenderer.invoke('plimb:app-version'),
-  listExtensions: () => ipcRenderer.invoke('plimb:list-extensions'),
-  readScript: (id, file) => ipcRenderer.invoke('plimb:read-script', id, file),
   blocklist: () => ipcRenderer.invoke('plimb:blocklist'),
   openExternal: (url) => ipcRenderer.invoke('plimb:open-external', url),
-  extensionsFolder: () => ipcRenderer.invoke('plimb:open-external', 'about:blank'),
+
+  listExtensions: () => ipcRenderer.invoke('plimb:extensions-list'),
+  setExtensionEnabled: (folder, enabled) =>
+    ipcRenderer.invoke('plimb:extensions-set-enabled', folder, enabled),
+  removeExtension: (folder) => ipcRenderer.invoke('plimb:extensions-remove', folder),
+  installUnpackedExtension: () => ipcRenderer.invoke('plimb:extensions-install-unpacked'),
+  installCrxExtension: () => ipcRenderer.invoke('plimb:extensions-install-crx'),
+  installWebStoreExtension: (input) =>
+    ipcRenderer.invoke('plimb:extensions-install-webstore', input),
+  openExtensionsFolder: () => ipcRenderer.invoke('plimb:extensions-folder'),
+
   onOpenUrl: (callback) => {
     ipcRenderer.on('plimb:open-url', (event, url) => callback(url));
   },
