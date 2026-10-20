@@ -5,13 +5,13 @@ on:
     branches: [main]
     paths:
       - "windows/**"
+      - "README.md"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "windows/**"
       - ".github/workflows/windows.yml"
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -52,3 +52,35 @@ jobs:
       - name: Lister les fichiers produits
         working-directory: windows
         run: Get-ChildItem -Recurse dist-electron | Select-Object FullName
+
+  release:
+    name: Release automatique
+    runs-on: ubuntu-latest
+    needs: portable
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: write
+    steps:
+      - name: Récupérer les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Préparer les fichiers
+        run: |
+          mkdir -p release
+          find artifacts -name "*.exe" -exec cp {} release/ \;
+          ls -la release
+
+      - name: Publier la GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Plimb Browser · build ${{ github.run_number }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            release/*.exe

@@ -24,18 +24,15 @@ Plimb Browser est construit autour de deux moteurs de rendu complets, chacun ave
   pour Android ne supporte pas les extensions). Les navigateurs Android qui y arrivent (Kiwi,
   Lemur) sont des **forks complets de Chromium** — 15+ Go de sources et plusieurs heures de
   compilation C++. On a donc pris l'autre route : **GeckoView**, le moteur Firefox embarqué,
-  qui expose un vrai système WebExtensions avec la bibliothèque officielle Mozilla, sans
-  compiler Chromium.
+  qui expose un vrai système WebExtensions, sans compiler Chromium.
 - **Sur Windows**, Electron embarque Chromium et — depuis sa version 44 — expose une API
   officielle d'extensions. On peut donc y charger de vraies extensions Chrome.
 
-> ⚠️ **Limites assumées (documentées par Electron)** : Electron supporte les extensions
-> *dépaquetées*, pas les `.crx` tels quels (on les dépaquète nous-mêmes). Il ne garantit pas
-> toutes les API Chrome : `chrome.action`/`browserAction`, `declarativeNetRequest`
-> (→ les bloqueurs MV3), `alarms`, `contextMenus` ne sont **pas** dans la liste supportée.
-> Ces extensions s'installent mais sont signalées comme incompatibles dans le gestionnaire.
-> IDEM pour GeckoView : seuls les add-ons **signés par Mozilla** s'installent, et Firefox
-> pour Android est surtout **MV2** aujourd'hui.
+> ⚠️ **Limites assumées** : Electron supporte les extensions *dépaquetées*, pas les `.crx`
+> tels quels (on les dépaquette), et ne garantit pas toutes les API Chrome
+> (`chrome.action`, `declarativeNetRequest`, `alarms`, `contextMenus` non supportées :
+> l'extension s'installe mais est signalée incompatible). Côté GeckoView, seuls les add-ons
+> **signés par Mozilla** s'installent et Firefox Android est encore très MV2.
 
 ## Ce que fait Plimb Browser
 
@@ -49,14 +46,14 @@ Plimb Browser est construit autour de deux moteurs de rendu complets, chacun ave
 **Android**
 - Catalogue d'add-ons Mozilla **intégré** : recherche + installation en 1 tap
 - Installation depuis un fichier `.xpi` ou une URL
-- Extensions intégrées au navigateur : **Plimb Bloqueur** (blocage réseau),
-  **Mode sombre universel**, **Anti bannières cookies**
-- Téléchargements (MediaStore / dossier Downloads), envoi de fichiers dans les formulaires,
-  plein écran, permissions caméra/micro/géolocalisation, restauration des onglets
+- Extensions intégrées : **Plimb Bloqueur** (blocage réseau), **Mode sombre universel**,
+  **Anti bannières cookies**
+- Téléchargements (MediaStore), envoi de fichiers dans les formulaires, plein écran,
+  permissions caméra/micro/géolocalisation, restauration des onglets
 - Intents `ACTION_VIEW` et `ACTION_SEND` (ouvrir un lien depuis une autre app)
 
 **Windows**
-- Application **portable** : un `.exe`, rien à installer, données dans `%APPDATA%`
+- Application **portable** : un `.exe`, rien à installer
 - Gestionnaire d'extensions complet (façon `chrome://extensions`) : dossier non empaqueté,
   `.crx`, téléchargement direct depuis le Chrome Web Store
 - Extensions intégrées : **Mode sombre universel**, **Anti bannières cookies**,
@@ -81,18 +78,16 @@ npm start                      # developpement
 npm run dist:portable          # exe portable dans dist-electron/
 ```
 
-## CI / CD
+## CI / CD — releases automatiques
 
-| Workflow | Fichier | Résultat |
-|----------|---------|----------|
-| **Android · compilation de l'APK** | `.github/workflows/android.yml` | artefact `plimb-browser-android-debug` |
-| **Windows · application portable** | `.github/workflows/windows.yml` | artefact `plimb-browser-windows-portable` |
-| **Release** | `.github/workflows/release.yml` | sur un tag `v*`, GitHub Release avec l'APK + l'exe |
+**Chaque push sur `main` compile et publie une GitHub Release** (tag `build-<numéro du run>`),
+avec les binaires en pièces jointes. Plus besoin de créer un tag à la main.
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+| Workflow | Fichier | Ce qu'il publie |
+|----------|---------|-----------------|
+| **Android · compilation de l'APK** | `.github/workflows/android.yml` | APK debug + release (signée si secrets) |
+| **Windows · application portable** | `.github/workflows/windows.yml` | exe Windows portable |
+| *(manuel)* | `workflow_dispatch` | relance un build complet |
 
 La chaîne Gradle est générée en CI (`gradle wrapper --gradle-version 8.9`) car le JAR du
 wrapper n'est pas versionné. L'APK release n'est signée qu'avec les secrets
@@ -101,34 +96,32 @@ wrapper n'est pas versionné. L'APK release n'est signée qu'avec les secrets
 ## Système d'extensions
 
 ### Android (WebExtensions GeckoView)
-Chaque extension intégrée est un dossier avec un `manifest.json` standard :
+Chaque extension intégrée est un dossier avec un `manifest.json` standard
+(`manifest_version`, `content_scripts`, `browser_specific_settings.gecko.id`) :
 
 ```
 mon-extension/
-├── manifest.json     # manifest_version, content_scripts, browser_specific_settings.gecko.id
+├── manifest.json
 ├── background.js     # scripts de fond (MV2)
 └── contenu.js        # scripts injectes
 ```
 
-Dans `assets/extensions/` : `blocker/` (blocage réseau via `webRequest`),
-`dark-theme/`, `cookie-banner/`. Le gestionnaire (menu **Extensions**) liste les add-ons
-installés et permet d'activer/désactiver/supprimer, plus l'accès au catalogue Mozilla.
+Dans `assets/extensions/` : `blocker/` (blocage réseau via `webRequest`), `dark-theme/`,
+`cookie-banner/`. Le menu **Extensions** liste les add-ons installés, permet
+d'activer/désactiver/supprimer, et donne accès au catalogue Mozilla.
 
 ### Windows (extensions Chrome)
-Même principe, format Chrome standard (`content_scripts`, `permissions`). Le gestionnaire
-permet en plus :
+Même principe, format Chrome. Le gestionnaire permet en plus :
 - **Dossier non empaqueté** (mode développeur Chrome) ;
-- **Fichier `.crx`** — dépaqueté automatiquement par `src/crx.js` (lecture de l'en-tête CRX2/3
-  puis extraction ZIP stored/deflate) ;
-- **Chrome Web Store** — l'ID (32 caractères) ou l'URL d'une fiche ; le `.crx` signé est
-  téléchargé depuis `clients2.google.com`, dépaqueté puis chargé.
+- **Fichier `.crx`** — dépaqueté par `src/crx.js` (en-tête CRX2/3 puis extraction ZIP) ;
+- **Chrome Web Store** — ID (32 caractères) ou URL de la fiche ; le `.crx` signé est
+  téléchargé, dépaqueté, puis chargé.
 
-Les extensions installées manuellement vivent dans
-`%APPDATA%/plimb-browser/extensions/` (bouton « Ouvrir le dossier extensions »).
+Les extensions installées manuellement vivent dans `%APPDATA%/plimb-browser/extensions/`.
 
 ## Bloqueur de publicité
 
-Le filtrage se fait **avant** le chargement de la requête, sur l'hôte demandé :
+Filtrage **avant** le chargement de la requête, sur l'hôte demandé :
 
 - Android : extension intégrée `extensions/blocker/background.js` (`browser.webRequest`)
 - Windows : `windows/blocklist.txt` + `session.webRequest` dans `src/main.js`
@@ -143,12 +136,11 @@ plimb-browser/
 │   ├── app/src/main/
 │   │   ├── assets/                  # home.html, extensions/ (WebExtensions integrees)
 │   │   └── java/dev/kurodaki/plimb/ # MainActivity, AddonManager, AmoClient, …
-│   └── build.gradle.kts
 ├── windows/                         # app Windows — Electron/Chromium
 │   ├── src/                         # main.js, preload.js, renderer.js, crx.js
 │   ├── extensions/                  # extensions Chrome integrees (MV2)
 │   └── blocklist.txt
-├── .github/workflows/               # CI : APK + portable + release
+├── .github/workflows/               # CI : build + release automatique
 ├── LICENSE                          # MIT © 2026 Kurodaki
 └── README.md
 ```
