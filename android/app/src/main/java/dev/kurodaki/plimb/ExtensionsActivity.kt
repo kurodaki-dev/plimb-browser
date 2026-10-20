@@ -1,17 +1,21 @@
 package dev.kurodaki.plimb
 
+import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
-import org.mozilla.geckoview.GeckoResult
-import org.mozilla.geckoview.WebExtension
+import java.io.File
 
 /**
  * Gestionnaire d extensions : liste des add-ons installes, activation,
@@ -20,6 +24,13 @@ import org.mozilla.geckoview.WebExtension
 class ExtensionsActivity : AppCompatActivity() {
 
     private lateinit var adapter: ExtensionsAdapter
+
+    private val filePicker: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val uri = result.data?.data ?: return@registerForActivityResult
+            installFromUri(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,7 +47,8 @@ class ExtensionsActivity : AppCompatActivity() {
 
         adapter = ExtensionsAdapter(
             onToggle = { entry, enabled ->
-                AddonManager.setEnabled(PlimbApp.runtime ?: return@ExtensionsAdapter, entry, enabled)
+                val runtime = PlimbApp.runtime ?: return@ExtensionsAdapter
+                AddonManager.setEnabled(runtime, entry, enabled)
                 refresh()
             },
             onRemove = { entry -> confirmRemove(entry) }
@@ -67,9 +79,12 @@ class ExtensionsActivity : AppCompatActivity() {
         val runtime = PlimbApp.runtime ?: return
         AddonManager.list(runtime).accept(
             { entries ->
-                adapter.submit(entries.sortedWith(
-                    compareByDescending<AddonEntry> { it.builtIn }.thenBy { it.name.lowercase() }
-                ))
+                adapter.submit(
+                    entries.sortedWith(
+                        compareByDescending<AddonEntry> { it.builtIn }
+                            .thenBy { it.name.lowercase() }
+                    )
+                )
             },
             { error ->
                 Toast.makeText(this, R.string.ext_unavailable, Toast.LENGTH_SHORT).show()
@@ -83,20 +98,13 @@ class ExtensionsActivity : AppCompatActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
         }
-        filePicker.launch(intent)
+        runCatching { filePicker.launch(intent) }
     }
 
-    private val filePicker =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode != RESULT_OK) return@registerForActivityResult
-            val uri = result.data?.data ?: return@registerForActivityResult
-            installFromUri(uri)
-        }
-
     private fun installFromUri(uri: android.net.Uri) {
-        // GeckoView accepte les URI file: — on copie donc l .xpi choisi dans le cache.
+        // GeckoView accepte les URI file: — on copie donc le .xpi choisi dans le cache.
         val runtime = PlimbApp.runtime ?: return
-        val target = java.io.File(cacheDir, "addon-" + System.currentTimeMillis() + ".xpi")
+        val target = File(cacheDir, "addon-" + System.currentTimeMillis() + ".xpi")
         try {
             contentResolver.openInputStream(uri)?.use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
@@ -118,9 +126,9 @@ class ExtensionsActivity : AppCompatActivity() {
     }
 
     private fun promptUrlInstall() {
-        val input = android.widget.EditText(this).apply {
+        val input = EditText(this).apply {
             hint = getString(R.string.ext_url_hint)
-            inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+            inputType = InputType.TYPE_TEXT_VARIATION_URI
             setPadding(48, 32, 48, 8)
         }
         AlertDialog.Builder(this)
@@ -158,7 +166,8 @@ class ExtensionsActivity : AppCompatActivity() {
             .setMessage(getString(R.string.ext_delete_confirm, entry.name))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                AddonManager.uninstall(PlimbApp.runtime ?: return@setPositiveButton, entry)
+                val runtime = PlimbApp.runtime ?: return@setPositiveButton
+                AddonManager.uninstall(runtime, entry)
                 refresh()
             }
             .show()

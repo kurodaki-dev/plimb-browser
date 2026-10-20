@@ -7,8 +7,8 @@ import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.WebResponse
 
 /**
- * Tous les callbacks du moteur Gecko pour un onglet.
- * L activite n est notifiee que lorsque l onglet concerne est l onglet actif.
+ * Callbacks du moteur Gecko pour un onglet : progression, navigation, contenu,
+ * prompts et permissions. L activite n est notifiee que pour l onglet actif.
  */
 class TabCallbacks(
     private val activity: MainActivity,
@@ -51,7 +51,7 @@ class TabCallbacks(
     override fun onLocationChange(
         session: GeckoSession,
         url: String?,
-        perms: List<GeckoSession.PermissionDelegate.ContentPermission>?,
+        perms: List<GeckoSession.PermissionDelegate.ContentPermission>,
         hasUserGesture: Boolean
     ) {
         tab.url = url ?: ""
@@ -78,21 +78,23 @@ class TabCallbacks(
         request: GeckoSession.NavigationDelegate.LoadRequest
     ): GeckoResult<AllowOrDeny>? {
         // target=_blank et window.open (avec geste utilisateur) deviennent des onglets.
-        if (request.target == GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW && request.hasUserGesture) {
+        if (request.target == GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW &&
+            request.hasUserGesture
+        ) {
             activity.openTab(request.uri)
             return GeckoResult.deny()
         }
 
         val scheme = Uri.parse(request.uri).scheme?.lowercase()
-        val handled = scheme != null && scheme !in INTERNAL_SCHEMES
-        if (handled) {
+        val external = scheme != null && scheme !in INTERNAL_SCHEMES
+        if (external) {
             activity.openExternally(Uri.parse(request.uri))
             return GeckoResult.deny()
         }
         return null
     }
 
-    // ------------------------------------------------------------- Contenu
+    // --------------------------------------------------------------- Contenu
 
     override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
         activity.onDownload(session, response)
@@ -106,7 +108,7 @@ class TabCallbacks(
         activity.onFullScreenRequested(fullScreen)
     }
 
-    // ------------------------------------------------------------- Prompts
+    // --------------------------------------------------------------- Prompts
 
     override fun onFilePrompt(
         session: GeckoSession,
@@ -130,7 +132,7 @@ class TabCallbacks(
         return GeckoResult.fromValue(prompt.confirm(AllowOrDeny.ALLOW))
     }
 
-    // --------------------------------------------------------- Permissions
+    // ---------------------------------------------------------- Permissions
 
     override fun onAndroidPermissionsRequest(
         session: GeckoSession,
@@ -163,13 +165,17 @@ class TabCallbacks(
             GeckoSession.PermissionDelegate.PERMISSION_STORAGE_ACCESS -> true
             else -> false
         }
-        if (autoGrant) {
-            return GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+        return if (autoGrant) {
+            GeckoResult.fromValue(
+                GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+            )
+        } else {
+            null
         }
-        return null
     }
 
     companion object {
-        private val INTERNAL_SCHEMES = setOf("http", "https", "file", "data", "about", "moz-extension")
+        private val INTERNAL_SCHEMES =
+            setOf("http", "https", "file", "data", "about", "moz-extension")
     }
 }
