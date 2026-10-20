@@ -1,6 +1,7 @@
 package dev.kurodaki.plimb
 
 import android.app.Activity
+import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
@@ -10,14 +11,17 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Message
 import android.provider.MediaStore
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.URLUtil
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebView
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -239,8 +243,12 @@ class MainActivity : AppCompatActivity() {
         urlBar.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) urlBar.setText(currentTab()?.url ?: "")
         }
-        btnBack.setOnClickListener { currentTab()?.session?.takeIf { it.canGoBack }?.goBack() }
-        btnForward.setOnClickListener { currentTab()?.session?.takeIf { it.canGoForward }?.goForward() }
+        btnBack.setOnClickListener {
+            currentTab()?.takeIf { it.canGoBack }?.session?.goBack()
+        }
+        btnForward.setOnClickListener {
+            currentTab()?.takeIf { it.canGoForward }?.session?.goForward()
+        }
         btnReload.setOnClickListener {
             val tab = currentTab() ?: return@setOnClickListener
             if (tab.isLoading) tab.session.stop() else tab.session.reload()
@@ -255,7 +263,10 @@ class MainActivity : AppCompatActivity() {
     /** Cree un onglet et charge l URL demandee. */
     fun openTab(url: String, select: Boolean = true): PlimbTab {
         val session = GeckoSession()
-        val callbacks = TabCallbacks(this, PlimbTab(session, GeckoView(this)))
+        val tab = PlimbTab(session, GeckoView(this))
+        val callbacks = TabCallbacks(this, tab)
+        tab.callbacks = callbacks
+
         session.progressDelegate = callbacks
         session.navigationDelegate = callbacks
         session.contentDelegate = callbacks
@@ -263,7 +274,6 @@ class MainActivity : AppCompatActivity() {
         session.permissionDelegate = callbacks
         session.open(runtime)
 
-        val tab = PlimbTab(session, callbacks.tab.geckoView)
         tab.geckoView.setSession(session)
         tab.url = url
         tabs.add(tab)
@@ -310,8 +320,8 @@ class MainActivity : AppCompatActivity() {
 
     fun updateChrome() {
         val tab = currentTab() ?: return
-        btnBack.isEnabled = tab.session.canGoBack
-        btnForward.isEnabled = tab.session.canGoForward
+        btnBack.isEnabled = tab.canGoBack
+        btnForward.isEnabled = tab.canGoForward
         btnReload.setImageResource(
             if (tab.isLoading) R.drawable.ic_close else R.drawable.ic_refresh
         )
@@ -359,9 +369,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun goBackOrExit() {
-        val session = currentTab()?.session
+        val tab = currentTab()
         when {
-            session != null && session.canGoBack -> session.goBack()
+            tab != null && tab.canGoBack -> tab.session.goBack()
             tabs.size > 1 -> closeTab(currentIndex)
             else -> finish()
         }
@@ -394,7 +404,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun saveDownload(name: String, stream: InputStream): String? =
- withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val values = ContentValues().apply {
@@ -485,13 +495,19 @@ class MainActivity : AppCompatActivity() {
                         .setTitle(extension.metaData?.name ?: extension.id)
                         .setMessage(details.trim())
                         .setNegativeButton(android.R.string.cancel) { _, _ ->
-                            result.complete(WebExtension.PermissionPromptResponse(false, false, false))
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(false, false, false)
+                            )
                         }
                         .setPositiveButton(android.R.string.ok) { _, _ ->
-                            result.complete(WebExtension.PermissionPromptResponse(true, true, true))
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(true, true, true)
+                            )
                         }
                         .setOnCancelListener {
-                            result.complete(WebExtension.PermissionPromptResponse(false, false, false))
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(false, false, false)
+                            )
                         }
                         .show()
                     return result
@@ -513,7 +529,18 @@ class MainActivity : AppCompatActivity() {
     private fun toggleBlocking() {
         val value = !prefs.getBoolean(Prefs.KEY_BLOCK_ADS, true)
         prefs.edit { putBoolean(Prefs.KEY_BLOCK_ADS, value) }
-        AddonManager.setEnabled(runtime, AddonEntry("plimb-blocker@plimb.browser", "", "", "", value, true), value)
+        AddonManager.setEnabled(
+            runtime,
+            AddonEntry(
+                id = "plimb-blocker@plimb.browser",
+                name = "",
+                version = "",
+                description = "",
+                enabled = value,
+                builtIn = true
+            ),
+            value
+        )
         currentTab()?.session?.reload()
         snack(getString(if (value) R.string.block_ads_on else R.string.block_ads_off))
         invalidateOptionsMenu()

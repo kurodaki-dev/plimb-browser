@@ -11,6 +11,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // GeckoView (moteur Firefox) n'est PAS publie sur Maven Central ni sur
+        // Google Maven : il faut le depot Mozilla.
+        maven {
+            url = uri("https://maven.mozilla.org/maven2/")
+        }
     }
 }
 

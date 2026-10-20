@@ -8,8 +8,7 @@ import org.mozilla.geckoview.GeckoRuntimeSettings
  * Plimb Browser (Android) — moteur GeckoView (Firefox).
  *
  * GeckoView est le moteur de rendu embarque de Firefox : il expose un veritable systeme
- * d extensions WebExtensions (installables depuis addons.mozilla.org ou depuis un .xpi),
- * ce que le WebView systeme ne permet pas.
+ * d extensions WebExtensions, contrairement au WebView systeme.
  */
 class PlimbApp : Application() {
 
@@ -17,8 +16,8 @@ class PlimbApp : Application() {
         super.onCreate()
         if (runtime == null) {
             val settings = GeckoRuntimeSettings.Builder()
+                // about:config reste accessible (bascule de xpinstall.signatures.required, etc.)
                 .aboutConfigEnabled(true)
-                .contentBlocking(GeckoRuntimeSettings.CONTENT_BLOCKING_STRICT)
                 .build()
             runtime = GeckoRuntime.create(this, settings)
         }
