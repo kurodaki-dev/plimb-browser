@@ -29,7 +29,7 @@ Les deux plateformes partagent désormais le **même moteur (Firefox/Gecko)** et
   un vrai système WebExtensions. Même format, même store, des deux côtés.
 - **Firefox n'a pas d'équivalent desktop embarquable** (XULRunner est mort depuis
   2015). La version Windows est donc une **distribution Firefox portable** : le
-  Firefox de Mozilla, plus un profil Plimm, nos extensions et des add-ons
+  Firefox de Mozilla, plus un profil Plimb, nos extensions et des add-ons
   préinstallés. Ce n'est pas un Firefox compilé depuis les sources par nous —
   voir « Limites honnêtes » plus bas.
 
@@ -80,7 +80,7 @@ assemble la distribution et produit `windows/dist-electron/Plimb-Browser-Windows
 ## CI / CD — release auto à chaque build
 
 **Chaque push sur `main` compile et publie une GitHub Release** (tag `build-<n°>`),
-avec les binaires en pièces jointes. Plus de tag manuel.
+avant les binaires en pièces jointes. Plus de tag manuel.
 
 | Workflow | Fichier | Publié |
 |----------|---------|--------|
@@ -143,8 +143,8 @@ plimb-browser/
 - **Android** : seuls les add-ons **signés par Mozilla** s'installent via
   `install()` ; Firefox pour Android est encore très MV2 ; certains add-ons de
   bureau sont signalés incompatibles (normal, c'est mobile).
-- **Windows** : c'est le Firefox de Mozilla avec une config Plimm — pas un
-  Firefox compilé par nous. Le nom/l'icône restent ceux de Firefox. Nos
+- **Windows** : c'est le Firefox de Mozilla avec une config Plimb — pas un
+  Firefox compilé par nous. Le nom et l'icône restent ceux de Firefox. Nos
   extensions ne sont pas signées par Mozilla : si Firefox refuse un jour le
   chargement local, uBlock Origin + Dark Reader (installés par politique,
   donc signés) assurent l'essentiel.
@@ -153,8 +153,8 @@ plimb-browser/
 
 ## Feuille de route
 
-- [ ] Signature des extensions Plimm par Mozilla (AMO) + auto-install par politique
-- [ ] Page « nouvel onglet » Plimm personnalisée (`userChrome.css` + `browser.newtab.url`)
+- [ ] Signature des extensions Plimb par Mozilla (AMO) + auto-install par politique
+- [ ] Page « nouvel onglet » Plimb personnalisée (`userChrome.css` + `browser.newtab.url`)
 - [ ] Icône et nom « Plimb » dans la barre de titre (repack du thème Firefox)
 - [ ] Synchronisation des onglets Android ↔ Windows
 - [ ] Version Linux (AppImage Firefox) via le même script
