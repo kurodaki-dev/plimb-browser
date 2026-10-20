@@ -1,16 +1,19 @@
 'use strict';
 
 /**
- * Rendu du navigateur : barre d onglets, barre d outils, injection des extensions.
+ * Rendu du navigateur : barre d onglets, barre d outils, telechargements
+ * et gestionnaire d extensions (veritables extensions Chrome via Electron).
  */
 
 var views = document.getElementById('views');
 var tabsElement = document.getElementById('tabs');
 var urlInput = document.getElementById('url-input');
 var menuElement = document.getElementById('menu');
-var extListElement = document.getElementById('ext-list');
 var downloadsElement = document.getElementById('downloads');
 var blockedCountElement = document.getElementById('blocked-count');
+var extPanel = document.getElementById('extensions-panel');
+var extList = document.getElementById('extensions-list');
+var extWebstoreInput = document.getElementById('ext-webstore-input');
 
 var tabs = new Map();
 var activeId = null;
@@ -71,21 +74,21 @@ function getPreference(key, fallback) {
   return value === undefined ? fallback : value;
 }
 
+// ------------------------------------------------------------------ onglets
+
 function createTab(url) {
   var id = ++sequence;
   var tab = { id: id, title: 'Nouvel onglet', url: '', loading: false, view: null };
+
+  // Pas de partition : la webview utilise la session par defaut, celle ou
+  // Electron charge les extensions.
   var view = document.createElement('webview');
   view.id = 'webview-' + id;
   view.setAttribute('src', url || NEWTAB_PAGE);
   view.setAttribute('allowpopups', '');
-  view.setAttribute('partition', 'persist:plimb');
-  view.setAttribute('webpreferences', 'contextIsolation=true, sandbox=true, nodeIntegration=false');
-  view.style.cssText =
-    'position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:none';
+  view.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes, nodeIntegration=no');
+  view.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:none';
 
-  view.addEventListener('dom-ready', function () {
-    injectExtensions(view);
-  });
   view.addEventListener('page-title-updated', function (event) {
     tab.title = event.title || tab.title;
     renderTabs();
@@ -203,7 +206,7 @@ function updateNav() {
       document.getElementById('btn-forward').disabled = !value;
     });
   } catch (error) {
-    /* anciennes versions d Electron */
+    /* versions anciennes d Electron */
   }
 }
 
@@ -223,112 +226,120 @@ function normalizeInput(input) {
   return base + encodeURIComponent(text);
 }
 
-function searchUrl(query) {
-  var engine = getPreference('engine', 'duckduckgo');
-  var base = SEARCH_ENGINES[engine] || SEARCH_ENGINES.duckduckgo;
-  return base + encodeURIComponent(query || '');
+// --------------------------------------------------------------- extensions
+
+function renderExtensions() {
+  extList.innerHTML = '';
+  if (!extensions.length) {
+    var empty = document.createElement('p');
+    empty.className = 'panel-help';
+    empty.textContent = 'Aucune extension. Installez-en une depuis le Chrome Web Store, un .crx ou un dossier.';
+    extList.appendChild(empty);
+    return;
+  }
+
+  extensions.forEach(function (extension) {
+    var row = document.createElement('div');
+    row.className = 'extension-row';
+
+    var head = document.createElement('div');
+    head.className = 'extension-head';
+
+    var name = document.createElement('span');
+    name.className = 'extension-name';
+    name.textContent = extension.name;
+    if (extension.version) {
+      name.textContent += ' ' + extension.version;
+    }
+
+    var badge = document.createElement('span');
+    badge.className = 'extension-tag';
+    badge.textContent = extension.builtIn ? 'intégrée' : 'installée';
+
+    head.appendChild(name);
+    head.appendChild(badge);
+
+    var description = document.createElement('p');
+    description.className = 'extension-description';
+    description.textContent = extension.description || '';
+
+    if (!extension.loaded) {
+      var warning = document.createElement('p');
+      warning.className = 'extension-warning';
+      warning.textContent =
+        (extension.warnings && extension.warnings.join(' ')) ||
+        'Non chargée : API Chromium non prise en charge par Electron.';
+      row.appendChild(warning);
+    }
+
+    var controls = document.createElement('div');
+    controls.className = 'extension-controls';
+
+    var toggle = document.createElement('label');
+    toggle.className = 'extension-toggle';
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = extension.enabled;
+    checkbox.addEventListener('change', function () {
+      window.plimb
+        .setExtensionEnabled(extension.folder, checkbox.checked)
+        .then(applyExtensions)
+        .then(reloadActiveTab)
+        .catch(function (error) {
+          console.warn('Plimb:', error);
+        });
+    });
+    toggle.appendChild(checkbox);
+    toggle.appendChild(document.createTextNode(' activée'));
+
+    var remove = document.createElement('button');
+    remove.className = 'panel-button ghost';
+    remove.textContent = extension.builtIn ? 'Désinstaller' : 'Supprimer';
+    remove.addEventListener('click', function () {
+      window.plimb.removeExtension(extension.folder).then(applyExtensions).catch(function (error) {
+        console.warn('Plimb:', error);
+      });
+    });
+
+    controls.appendChild(toggle);
+    controls.appendChild(remove);
+
+    row.appendChild(head);
+    row.appendChild(description);
+    row.appendChild(controls);
+    extList.appendChild(row);
+  });
 }
 
-// ------------------------------------------------------------- extensions
+function reloadActiveTab() {
+  var view = activeView();
+  if (view) view.reload();
+}
+
+function applyExtensions(list) {
+  extensions = list || [];
+  renderExtensions();
+  return extensions;
+}
 
 function loadExtensions() {
   if (!window.plimb) return Promise.resolve([]);
-  return window.plimb
-    .listExtensions()
-    .then(function (list) {
-      extensions = list || [];
-      return extensions;
-    })
-    .catch(function (error) {
-      console.warn('Plimb: extensions indisponibles', error);
-      return [];
-    });
-}
-
-function extensionEnabled(extension) {
-  return getPreference('ext:' + extension.id, extension.defaultEnabled !== false);
-}
-
-function urlMatches(pattern, url) {
-  if (!pattern || pattern === '<all_urls>') return true;
-  try {
-    var escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    return new RegExp('^' + escaped + '$').test(url);
-  } catch (error) {
-    return false;
-  }
-}
-
-function injectExtensions(view) {
-  loadExtensions().then(function (list) {
-    var url = '';
-    try {
-      url = view.getURL();
-    } catch (error) {
-      url = '';
-    }
-    list.forEach(function (extension) {
-      if (!extensionEnabled(extension)) return;
-      if (extension.matches && extension.matches.length) {
-        var matched = extension.matches.some(function (pattern) {
-          return urlMatches(pattern, url);
-        });
-        if (!matched) return;
-      }
-      (extension.js || []).forEach(function (file) {
-        window.plimb.readScript(extension.id, file).then(function (code) {
-          if (!code) return;
-          try {
-            view.executeJavaScript(code, true);
-          } catch (error) {
-            console.warn('Plimb: injection impossible', extension.id, error);
-          }
-        });
-      });
-    });
+  return window.plimb.listExtensions().then(applyExtensions).catch(function (error) {
+    console.warn('Plimb: extensions indisponibles', error);
+    return [];
   });
 }
 
-function renderExtensionMenu() {
-  extListElement.innerHTML = '';
-  if (!extensions.length) {
-    var empty = document.createElement('li');
-    empty.className = 'muted';
-    empty.textContent = 'Aucune extension installée.';
-    extListElement.appendChild(empty);
-    return;
-  }
-  extensions.forEach(function (extension) {
-    var item = document.createElement('li');
-    var checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = extensionEnabled(extension);
-    checkbox.addEventListener('change', function () {
-      store('ext:' + extension.id, checkbox.checked);
-      var view = activeView();
-      if (view) view.reload();
-    });
-    var label = document.createElement('span');
-    label.textContent = ' ' + extension.name + ' ' + extension.version;
-    var badge = document.createElement('em');
-    badge.className = 'tag';
-    badge.textContent = extension.bundled ? 'intégrée' : 'utilisateur';
-    item.appendChild(checkbox);
-    item.appendChild(label);
-    item.appendChild(badge);
-    item.title = extension.description || '';
-    extListElement.appendChild(item);
-  });
+function openExtensionsPanel() {
+  extPanel.hidden = false;
+  loadExtensions();
 }
 
-// ------------------------------------------------------------------ menu
+// ------------------------------------------------------------------- menu
 
 document.getElementById('btn-menu').addEventListener('click', function (event) {
   event.stopPropagation();
   menuElement.hidden = !menuElement.hidden;
-  if (!menuElement.hidden) {
-    loadExtensions().then(renderExtensionMenu);
-  }
 });
 
 document.addEventListener('click', function (event) {
@@ -344,13 +355,55 @@ document.querySelectorAll('input[name="engine"]').forEach(function (radio) {
   });
 });
 
+// --------------------------------------------------------- panneau extensions
+
 document.getElementById('btn-extensions').addEventListener('click', function (event) {
   event.stopPropagation();
-  menuElement.hidden = false;
-  loadExtensions().then(renderExtensionMenu);
+  if (extPanel.hidden) {
+    openExtensionsPanel();
+  } else {
+    extPanel.hidden = true;
+  }
 });
 
-// --------------------------------------------------------------- toolbar
+document.getElementById('extensions-close').addEventListener('click', function () {
+  extPanel.hidden = true;
+});
+
+document.getElementById('ext-install-unpacked').addEventListener('click', function () {
+  window.plimb.installUnpackedExtension().then(function (result) {
+    if (!result.cancelled) applyExtensions(result.extensions);
+  }).catch(function (error) {
+    window.alert('Installation impossible : ' + error.message);
+  });
+});
+
+document.getElementById('ext-install-crx').addEventListener('click', function () {
+  window.plimb.installCrxExtension().then(function (result) {
+    if (!result.cancelled) applyExtensions(result.extensions);
+  }).catch(function (error) {
+    window.alert('Installation impossible : ' + error.message);
+  });
+});
+
+document.getElementById('ext-install-webstore').addEventListener('click', function () {
+  var value = extWebstoreInput.value.trim();
+  if (!value) return;
+  window.plimb.installWebStoreExtension(value).then(function (result) {
+    if (!result.cancelled) {
+      applyExtensions(result.extensions);
+      extWebstoreInput.value = '';
+    }
+  }).catch(function (error) {
+    window.alert('Chrome Web Store : ' + error.message);
+  });
+});
+
+document.getElementById('ext-open-folder').addEventListener('click', function () {
+  window.plimb.openExtensionsFolder();
+});
+
+// ---------------------------------------------------------------- toolbar
 
 document.getElementById('new-tab').addEventListener('click', function () {
   createTab();
@@ -377,8 +430,7 @@ document.getElementById('btn-home').addEventListener('click', function () {
 
 urlInput.addEventListener('keydown', function (event) {
   if (event.key === 'Enter') {
-    var target = normalizeInput(urlInput.value);
-    navigate(activeView(), target);
+    navigate(activeView(), normalizeInput(urlInput.value));
     urlInput.blur();
   } else if (event.key === 'Escape') {
     var tab = activeTab();
@@ -413,7 +465,7 @@ document.addEventListener('keydown', function (event) {
   }
 });
 
-// ------------------------------------------------------------ telechargements
+// --------------------------------------------------------- telechargements
 
 if (window.plimb) {
   window.plimb.onOpenUrl(function (url) {
@@ -438,14 +490,11 @@ if (window.plimb) {
   window.plimb.blocklist().then(function (list) {
     blockedCountElement.textContent = String((list || []).length);
   });
+
+  window.plimb.appVersion().then(function (version) {
+    document.title = 'Plimb Browser ' + version;
+  });
 }
 
-loadExtensions().then(function () {
-  if (window.plimb) {
-    window.plimb.appVersion().then(function (version) {
-      document.title = 'Plimb Browser ' + version;
-    });
-  }
-});
-
+loadExtensions();
 createTab();

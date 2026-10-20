@@ -1,12 +1,16 @@
 {
-  "id": "cookie-banner",
+  "manifest_version": 2,
   "name": "Anti bannieres cookies",
   "version": "1.0.0",
   "description": "Clique automatiquement sur « refuser » (ou a defaut « accepter ») dans les bandeaux cookies.",
   "author": "Plimb Team",
-  "homepage": "https://github.com/kurodaki-dev/plimb-browser",
-  "defaultEnabled": true,
-  "matches": ["*://*/*"],
-  "runAt": "document_end",
-  "js": ["banner.js"]
+  "permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["banner.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
 }

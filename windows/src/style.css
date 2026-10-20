@@ -20,9 +20,6 @@ html, body {
   font: 14px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
 }
 
-#app-shell, body { display: flex; flex-direction: column; }
-
-/* ---------------------------------------------------------- barre d onglets */
 #tabstrip {
   display: flex;
   align-items: stretch;
@@ -88,7 +85,6 @@ html, body {
 
 .strip-button:hover { background: #1d2a45; color: #fff; }
 
-/* ------------------------------------------------------------- toolbar */
 #toolbar {
   display: flex;
   align-items: center;
@@ -126,7 +122,6 @@ html, body {
 
 #url-input:focus { border-color: var(--accent); background: #101d33; }
 
-/* ------------------------------------------------------------- vues */
 #views {
   position: relative;
   flex: 1;
@@ -135,7 +130,6 @@ html, body {
 
 webview { height: 100%; width: 100%; }
 
-/* ------------------------------------------------------------- telechargements */
 #downloads {
   position: fixed;
   right: 14px;
@@ -148,12 +142,11 @@ webview { height: 100%; width: 100%; }
   z-index: 5;
 }
 
-/* ------------------------------------------------------------- menu */
 #menu {
   position: fixed;
   top: 76px;
   right: 10px;
-  width: 290px;
+  width: 300px;
   padding: 10px;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -183,24 +176,103 @@ webview { height: 100%; width: 100%; }
 .menu-item.muted { color: var(--muted); font-size: 12px; align-items: flex-start; }
 .menu-separator { height: 1px; background: var(--border); margin: 8px 0; }
 
-#ext-list { list-style: none; margin: 0; padding: 0; }
+/* ----------------------------------------------------- panneau extensions */
 
-#ext-list li {
+#extensions-panel {
+  position: fixed;
+  top: 76px;
+  right: 10px;
+  width: 380px;
+  max-height: min(70vh, 640px);
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 8px;
+  flex-direction: column;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  z-index: 12;
 }
 
-#ext-list li:hover { background: #223252; }
+#extensions-panel[hidden] { display: none; }
 
-.tag {
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header h2 { margin: 0; font-size: 15px; }
+.panel-close {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 18px; cursor: pointer; padding: 2px 8px; border-radius: 6px;
+}
+.panel-close:hover { background: #223252; color: #fff; }
+
+.extensions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.extension-row {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--panel);
+}
+
+.extension-head { display: flex; align-items: center; gap: 8px; }
+.extension-name { font-weight: 600; }
+.extension-tag {
   margin-left: auto;
-  font-style: normal;
   font-size: 10px;
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 7px;
 }
+.extension-description { margin: 6px 0; color: var(--muted); font-size: 12px; }
+.extension-warning { margin: 6px 0; color: #fca5a5; font-size: 12px; }
+.extension-controls { display: flex; align-items: center; gap: 10px; }
+.extension-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+.panel-footer {
+  border-top: 1px solid var(--border);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.button-row { display: flex; gap: 8px; align-items: center; }
+
+.panel-button {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.panel-button:hover { filter: brightness(1.1); }
+.panel-button.ghost { background: transparent; color: var(--text); }
+.panel-button.ghost:hover { background: #223252; }
+
+#ext-webstore-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0e1728;
+  color: var(--text);
+  outline: none;
+  font-size: 12px;
+}
+
+.panel-help { margin: 0; color: var(--muted); font-size: 11px; }
