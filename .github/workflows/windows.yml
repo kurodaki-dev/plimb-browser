@@ -1,4 +1,4 @@
-name: Windows · application portable
+name: Windows · distribution Firefox portable
 
 on:
   push:
@@ -22,36 +22,23 @@ concurrency:
 
 jobs:
   portable:
-    name: Exécutable Windows portable
+    name: Archive Windows portable (Firefox)
     runs-on: windows-latest
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
 
-      - name: Installer Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Construire la distribution Firefox portable
+        shell: pwsh
+        run: pwsh -File windows/build.ps1
 
-      - name: Installer les dépendances
-        working-directory: windows
-        run: npm install --no-audit --no-fund
-
-      - name: Compiler la version portable
-        working-directory: windows
-        run: npx electron-builder --win portable --publish never
-
-      - name: Publier l'exécutable portable
+      - name: Publier l'archive portable
         uses: actions/upload-artifact@v4
         with:
           name: plimb-browser-windows-portable
-          path: windows/dist-electron/*.exe
+          path: windows/dist-electron/*.zip
           if-no-files-found: error
           retention-days: 30
-
-      - name: Lister les fichiers produits
-        working-directory: windows
-        run: Get-ChildItem -Recurse dist-electron | Select-Object FullName
 
   release:
     name: Release automatique
@@ -67,10 +54,10 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Préparer les fichiers
+      - name: Renommer l'archive
         run: |
           mkdir -p release
-          find artifacts -name "*.exe" -exec cp {} release/ \;
+          find artifacts -name "*.zip" -exec cp {} release/Plimb-Browser-Windows-Portable.zip \;
           ls -la release
 
       - name: Publier la GitHub Release
@@ -83,4 +70,4 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: false
           files: |
-            release/*.exe
+            release/*.zip

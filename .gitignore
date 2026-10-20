@@ -12,6 +12,8 @@ android/captures/
 windows/node_modules/
 windows/dist/
 windows/dist-electron/
+windows/build-output/
+windows/*.xpi
 npm-debug.log*
 yarn-error.log*
 
